@@ -12,12 +12,15 @@ SOURCES += \
     main.cpp \
     mainwindow.cpp \
     model.cpp \
-    test_dynamicarray.cpp
+    simplestring.cpp \
+    test_dynamicarray.cpp \
+    test_simplestring.cpp
 
 HEADERS += \
     dynamicarray.h \
     mainwindow.h \
-    model.h
+    model.h \
+    simplestring.h
 
 FORMS += \
     mainwindow.ui

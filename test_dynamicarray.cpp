@@ -66,7 +66,7 @@ int TestItem::copy_count = 0;
 int TestItem::move_count = 0;
 
 // Test function declarations
-void test_constructors();
+void test_constructors_array();
 void test_accessors();
 void test_capacity();
 void test_modifiers();
@@ -75,35 +75,35 @@ void test_iterators();
 void test_exceptions();
 void test_complex_type();
 
-int main() {
-    std::cout << "Starting DynamicArray tests...\n" << std::endl;
+// int main() {
+//     std::cout << "Starting DynamicArray tests...\n" << std::endl;
 
-    try {
-        test_constructors();
-        test_accessors();
-        test_capacity();
-        test_modifiers();
-        test_copy_move_semantics();
-        test_iterators();
-        test_exceptions();
-        test_complex_type();
+//     try {
+//         test_constructors_array();
+//         test_accessors();
+//         test_capacity();
+//         test_modifiers();
+//         test_copy_move_semantics();
+//         test_iterators();
+//         test_exceptions();
+//         test_complex_type();
 
-        std::cout << "\nAll tests passed!" << std::endl;
-    } catch (const DynamicArrayException& e) {
-        std::cerr << "Test failed with exception: " << e.what() << std::endl;
-        return 1;
-    } catch (const std::exception& e) {
-        std::cerr << "Test failed with standard exception: " << e.what() << std::endl;
-        return 1;
-    } catch (...) {
-        std::cerr << "Test failed with unknown exception" << std::endl;
-        return 1;
-    }
+//         std::cout << "\nAll tests passed!" << std::endl;
+//     } catch (const DynamicArrayException& e) {
+//         std::cerr << "Test failed with exception: " << e.what() << std::endl;
+//         return 1;
+//     } catch (const std::exception& e) {
+//         std::cerr << "Test failed with standard exception: " << e.what() << std::endl;
+//         return 1;
+//     } catch (...) {
+//         std::cerr << "Test failed with unknown exception" << std::endl;
+//         return 1;
+//     }
 
-    return 0;
-}
+//     return 0;
+// }
 
-void test_constructors() {
+void test_constructors_array() {
     std::cout << "=== Testing Constructors ===" << std::endl;
 
     // Test default constructor
