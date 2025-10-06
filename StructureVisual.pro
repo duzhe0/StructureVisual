@@ -11,7 +11,8 @@ CONFIG += c++17
 SOURCES += \
     main.cpp \
     mainwindow.cpp \
-    model.cpp
+    model.cpp \
+    test_dynamicarray.cpp
 
 HEADERS += \
     dynamicarray.h \

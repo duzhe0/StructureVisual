@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>  // 只使用标准类型定义，不使用 STL
+#include <utility>  // 需要包含这个来使用 std::move
 
 // 简单的异常类（替代 std::exception）
 class DynamicArrayException {
@@ -10,6 +11,74 @@ public:
     DynamicArrayException(const char* msg) : message_(msg) {}
     const char* what() const { return message_; }
 };
+
+// 前向声明
+template<typename T>
+class DynamicArray;
+
+// ========== 迭代器类 ==========
+
+template<typename T>
+class Iterator {
+private:
+    T* ptr_;
+public:
+    explicit Iterator(T* ptr) : ptr_(ptr) {}
+
+    T& operator*() const { return *ptr_; }
+    T* operator->() const { return ptr_; }
+
+    Iterator& operator++() {
+        ++ptr_;
+        return *this;
+    }
+
+    Iterator operator++(int) {
+        Iterator temp = *this;
+        ++ptr_;
+        return temp;
+    }
+
+    bool operator==(const Iterator& other) const {
+        return ptr_ == other.ptr_;
+    }
+
+    bool operator!=(const Iterator& other) const {
+        return ptr_ != other.ptr_;
+    }
+};
+
+template<typename T>
+class ConstIterator {
+private:
+    const T* ptr_;
+public:
+    explicit ConstIterator(const T* ptr) : ptr_(ptr) {}
+
+    const T& operator*() const { return *ptr_; }
+    const T* operator->() const { return ptr_; }
+
+    ConstIterator& operator++() {
+        ++ptr_;
+        return *this;
+    }
+
+    ConstIterator operator++(int) {
+        ConstIterator temp = *this;
+        ++ptr_;
+        return temp;
+    }
+
+    bool operator==(const ConstIterator& other) const {
+        return ptr_ == other.ptr_;
+    }
+
+    bool operator!=(const ConstIterator& other) const {
+        return ptr_ != other.ptr_;
+    }
+};
+
+// ========== 动态数组类 ==========
 
 template<typename T>
 class DynamicArray {
@@ -28,7 +97,7 @@ private:
 
         // 拷贝现有元素
         for (size_t i = 0; i < size_; ++i) {
-            new_data[i] = data_[i];  // 依赖 T 的拷贝赋值
+            new_data[i] = std::move(data_[i]);  // 使用移动语义提高效率
         }
 
         // 清理旧内存并更新指针
@@ -45,17 +114,21 @@ private:
     }
 
 public:
+    // ========== 类型定义 ==========
+    using iterator = Iterator<T>;
+    using const_iterator = ConstIterator<T>;
+
     // ========== 构造函数和析构函数 ==========
 
     // 默认构造函数
     DynamicArray(size_t initial_capacity = 16)
-        : size_(0), capacity_(initial_capacity > 0 ? initial_capacity : 1) {
+        : data_(nullptr), size_(0), capacity_(initial_capacity > 0 ? initial_capacity : 1) {
         data_ = new T[capacity_];
     }
 
     // 带初始大小的构造函数
     DynamicArray(size_t count, const T& initial_value)
-        : size_(count), capacity_(count > 0 ? count : 1) {
+        : data_(nullptr), size_(count), capacity_(count > 0 ? count : 1) {
         data_ = new T[capacity_];
         for (size_t i = 0; i < size_; ++i) {
             data_[i] = initial_value;
@@ -64,7 +137,7 @@ public:
 
     // 拷贝构造函数
     DynamicArray(const DynamicArray& other)
-        : size_(other.size_), capacity_(other.capacity_) {
+        : data_(nullptr), size_(other.size_), capacity_(other.capacity_) {
         data_ = new T[capacity_];
         for (size_t i = 0; i < size_; ++i) {
             data_[i] = other.data_[i];
@@ -163,9 +236,7 @@ public:
     size_t capacity() const { return capacity_; }
 
     void reserve(size_t new_capacity) {
-        if (new_capacity > capacity_) {
-            reallocate(new_capacity);
-        }
+        reallocate(new_capacity);
     }
 
     void shrink_to_fit() {
@@ -214,93 +285,26 @@ public:
         size_ = new_size;
     }
 
+    // ========== 迭代器方法 ==========
+
+    iterator begin() { return iterator(data_); }
+    iterator end() { return iterator(data_ + size_); }
+
+    const_iterator begin() const { return const_iterator(data_); }
+    const_iterator end() const { return const_iterator(data_ + size_); }
+
+    const_iterator cbegin() const { return const_iterator(data_); }
+    const_iterator cend() const { return const_iterator(data_ + size_); }
+
     // ========== 工具函数 ==========
 
     void swap(DynamicArray& other) noexcept {
         // 交换所有成员变量
-        T* temp_data = data_;
-        data_ = other.data_;
-        other.data_ = temp_data;
-
-        size_t temp_size = size_;
-        size_ = other.size_;
-        other.size_ = temp_size;
-
-        size_t temp_capacity = capacity_;
-        capacity_ = other.capacity_;
-        other.capacity_ = temp_capacity;
+        std::swap(data_, other.data_);
+        std::swap(size_, other.size_);
+        std::swap(capacity_, other.capacity_);
     }
 };
-
-// ========== 迭代器支持 ==========
-
-// 前向迭代器
-class Iterator {
-private:
-    T* ptr_;
-public:
-    explicit Iterator(T* ptr) : ptr_(ptr) {}
-
-    T& operator*() const { return *ptr_; }
-    T* operator->() const { return ptr_; }
-
-    Iterator& operator++() {
-        ++ptr_;
-        return *this;
-    }
-
-    Iterator operator++(int) {
-        Iterator temp = *this;
-        ++ptr_;
-        return temp;
-    }
-
-    bool operator==(const Iterator& other) const {
-        return ptr_ == other.ptr_;
-    }
-
-    bool operator!=(const Iterator& other) const {
-        return ptr_ != other.ptr_;
-    }
-};
-
-class ConstIterator {
-private:
-    const T* ptr_;
-public:
-    explicit ConstIterator(const T* ptr) : ptr_(ptr) {}
-
-    const T& operator*() const { return *ptr_; }
-    const T* operator->() const { return ptr_; }
-
-    ConstIterator& operator++() {
-        ++ptr_;
-        return *this;
-    }
-
-    ConstIterator operator++(int) {
-        ConstIterator temp = *this;
-        ++ptr_;
-        return temp;
-    }
-
-    bool operator==(const ConstIterator& other) const {
-        return ptr_ == other.ptr_;
-    }
-
-    bool operator!=(const ConstIterator& other) const {
-        return ptr_ != other.ptr_;
-    }
-};
-
-Iterator begin() { return Iterator(data_); }
-Iterator end() { return Iterator(data_ + size_); }
-
-ConstIterator begin() const { return ConstIterator(data_); }
-ConstIterator end() const { return ConstIterator(data_ + size_); }
-
-ConstIterator cbegin() const { return ConstIterator(data_); }
-ConstIterator cend() const { return ConstIterator(data_ + size_); }
 
 // 全局 swap 函数
 template<typename T>
