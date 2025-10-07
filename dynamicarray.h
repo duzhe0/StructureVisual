@@ -2,7 +2,8 @@
 
 #include <cstddef>  // 只使用标准类型定义，不使用 STL
 #include <utility>  // 需要包含这个来使用 std::move
-
+#include "Iterable.h"
+#include "Iterator.h"
 // 简单的异常类（替代 std::exception）
 class DynamicArrayException {
 private:
@@ -15,73 +16,10 @@ public:
 // 前向声明
 template<typename T>
 class DynamicArray;
-
-// ========== 迭代器类 ==========
-
-template<typename T>
-class Iterator {
-private:
-    T* ptr_;
-public:
-    explicit Iterator(T* ptr) : ptr_(ptr) {}
-
-    T& operator*() const { return *ptr_; }
-    T* operator->() const { return ptr_; }
-
-    Iterator& operator++() {
-        ++ptr_;
-        return *this;
-    }
-
-    Iterator operator++(int) {
-        Iterator temp = *this;
-        ++ptr_;
-        return temp;
-    }
-
-    bool operator==(const Iterator& other) const {
-        return ptr_ == other.ptr_;
-    }
-
-    bool operator!=(const Iterator& other) const {
-        return ptr_ != other.ptr_;
-    }
-};
-
-template<typename T>
-class ConstIterator {
-private:
-    const T* ptr_;
-public:
-    explicit ConstIterator(const T* ptr) : ptr_(ptr) {}
-
-    const T& operator*() const { return *ptr_; }
-    const T* operator->() const { return ptr_; }
-
-    ConstIterator& operator++() {
-        ++ptr_;
-        return *this;
-    }
-
-    ConstIterator operator++(int) {
-        ConstIterator temp = *this;
-        ++ptr_;
-        return temp;
-    }
-
-    bool operator==(const ConstIterator& other) const {
-        return ptr_ == other.ptr_;
-    }
-
-    bool operator!=(const ConstIterator& other) const {
-        return ptr_ != other.ptr_;
-    }
-};
-
 // ========== 动态数组类 ==========
 
 template<typename T>
-class DynamicArray {
+class DynamicArray:public Iterable<T>{
 private:
     T* data_;
     size_t size_;
@@ -114,12 +52,6 @@ private:
     }
 
 public:
-    // ========== 类型定义 ==========
-    using iterator = Iterator<T>;
-    using const_iterator = ConstIterator<T>;
-
-    // ========== 构造函数和析构函数 ==========
-
     // 默认构造函数
     DynamicArray(size_t initial_capacity = 16)
         : data_(nullptr), size_(0), capacity_(initial_capacity > 0 ? initial_capacity : 1) {
@@ -156,9 +88,6 @@ public:
     ~DynamicArray() {
         delete[] data_;
     }
-
-    // ========== 赋值运算符 ==========
-
     // 拷贝赋值
     DynamicArray& operator=(const DynamicArray& other) {
         if (this != &other) {
@@ -286,16 +215,9 @@ public:
     }
 
     // ========== 迭代器方法 ==========
-
-    iterator begin() { return iterator(data_); }
-    iterator end() { return iterator(data_ + size_); }
-
-    const_iterator begin() const { return const_iterator(data_); }
-    const_iterator end() const { return const_iterator(data_ + size_); }
-
-    const_iterator cbegin() const { return const_iterator(data_); }
-    const_iterator cend() const { return const_iterator(data_ + size_); }
-
+    Iterator<T>* createIterator(){
+        return new ArrayIterator(this);
+    }
     // ========== 工具函数 ==========
 
     void swap(DynamicArray& other) noexcept {

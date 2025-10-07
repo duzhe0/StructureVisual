@@ -137,16 +137,16 @@ void test_edge_cases() {
     std::cout << "Edge case tests passed!" << std::endl;
 }
 
-int main() {
-    std::cout << "Starting SimpleString tests..." << std::endl;
+// int main() {
+//     std::cout << "Starting SimpleString tests..." << std::endl;
 
-    test_constructors_string();
-    test_assignment();
-    test_comparison();
-    test_modification();
-    test_hash();
-    test_edge_cases();
+//     test_constructors_string();
+//     test_assignment();
+//     test_comparison();
+//     test_modification();
+//     test_hash();
+//     test_edge_cases();
 
-    std::cout << "All SimpleString tests passed!" << std::endl;
-    return 0;
-}
+//     std::cout << "All SimpleString tests passed!" << std::endl;
+//     return 0;
+// }

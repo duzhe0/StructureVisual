@@ -75,33 +75,33 @@ void test_iterators();
 void test_exceptions();
 void test_complex_type();
 
-// int main() {
-//     std::cout << "Starting DynamicArray tests...\n" << std::endl;
+int main() {
+    std::cout << "Starting DynamicArray tests...\n" << std::endl;
 
-//     try {
-//         test_constructors_array();
-//         test_accessors();
-//         test_capacity();
-//         test_modifiers();
-//         test_copy_move_semantics();
-//         test_iterators();
-//         test_exceptions();
-//         test_complex_type();
+    try {
+        test_constructors_array();
+        test_accessors();
+        test_capacity();
+        test_modifiers();
+        test_copy_move_semantics();
+        test_iterators();
+        test_exceptions();
+        test_complex_type();
 
-//         std::cout << "\nAll tests passed!" << std::endl;
-//     } catch (const DynamicArrayException& e) {
-//         std::cerr << "Test failed with exception: " << e.what() << std::endl;
-//         return 1;
-//     } catch (const std::exception& e) {
-//         std::cerr << "Test failed with standard exception: " << e.what() << std::endl;
-//         return 1;
-//     } catch (...) {
-//         std::cerr << "Test failed with unknown exception" << std::endl;
-//         return 1;
-//     }
+        std::cout << "\nAll tests passed!" << std::endl;
+    } catch (const DynamicArrayException& e) {
+        std::cerr << "Test failed with exception: " << e.what() << std::endl;
+        return 1;
+    } catch (const std::exception& e) {
+        std::cerr << "Test failed with standard exception: " << e.what() << std::endl;
+        return 1;
+    } catch (...) {
+        std::cerr << "Test failed with unknown exception" << std::endl;
+        return 1;
+    }
 
-//     return 0;
-// }
+    return 0;
+}
 
 void test_constructors_array() {
     std::cout << "=== Testing Constructors ===" << std::endl;
@@ -320,32 +320,11 @@ void test_iterators() {
 
     // Test non-const iterators
     int expected = 0;
-    for (auto it = arr.begin(); it != arr.end(); ++it) {
-        assert(*it == expected);
+    Iterator<int>* aIter=arr.createIterator();
+    for (aIter->First();!aIter->isDone();aIter->Next()){
+        assert(aIter->CurrentItem() == expected);
         expected += 10;
     }
-
-    // Test const iterators
-    expected = 0;
-    for (auto it = arr.cbegin(); it != arr.cend(); ++it) {
-        assert(*it == expected);
-        expected += 10;
-    }
-
-    // Test range-based for loop
-    expected = 0;
-    for (int value : arr) {
-        assert(value == expected);
-        expected += 10;
-    }
-
-    // Test modifying elements
-    for (auto& value : arr) {
-        value += 1;
-    }
-    assert(arr[0] == 1);
-    assert(arr[4] == 41);
-
     std::cout << "Iterator tests passed" << std::endl;
 }
 

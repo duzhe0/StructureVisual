@@ -17,6 +17,8 @@ SOURCES += \
     test_simplestring.cpp
 
 HEADERS += \
+    Iterable.h \
+    Iterator.h \
     dynamicarray.h \
     mainwindow.h \
     model.h \
