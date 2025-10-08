@@ -5,18 +5,61 @@
 #include "Iterable.h"
 #include "Iterator.h"
 // 简单的异常类（替代 std::exception）
-class DynamicArrayException {
+class SimpleException {
 private:
     const char* message_;
 public:
-    DynamicArrayException(const char* msg) : message_(msg) {}
+    SimpleException(const char* msg) : message_(msg) {}
     const char* what() const { return message_; }
 };
 
-// 前向声明
+// ========== 动态数组类 ==========
+// 前置声明
 template<typename T>
 class DynamicArray;
-// ========== 动态数组类 ==========
+//ArrayIterator begin
+
+template<typename T>
+class ArrayIterator:public Iterator<T>{
+public:
+    ArrayIterator(const DynamicArray<T>* array);
+    virtual void First();
+    virtual void Next();
+    virtual bool isDone() const;
+    virtual T CurrentItem() const;
+private:
+    const DynamicArray<T>* _array;
+    long _current;
+};
+
+template<class T>
+ArrayIterator<T>::ArrayIterator(const DynamicArray<T> *array):
+    _array(array),_current(0){}
+
+template<class T>
+void ArrayIterator<T>::First(){
+    _current=0;
+}
+
+template<class T>
+void ArrayIterator<T>::Next(){
+    _current++;
+}
+
+template<class T>
+bool ArrayIterator<T>::isDone() const{
+    return _current>=_array->size();
+}
+
+template<class T>
+T ArrayIterator<T>::CurrentItem() const{
+    if(isDone()){
+        throw std::out_of_range("Array index");
+    }
+    return _array->at(_current);
+}
+
+//ArrayIterator end
 
 template<typename T>
 class DynamicArray:public Iterable<T>{
@@ -28,7 +71,7 @@ private:
     // 重新分配内存
     void reallocate(size_t new_capacity) {
         if (new_capacity < size_) {
-            throw DynamicArrayException("New capacity cannot be less than current size");
+            throw SimpleException("New capacity cannot be less than current size");
         }
 
         T* new_data = new T[new_capacity];
@@ -47,7 +90,7 @@ private:
     // 边界检查（内联以提高性能）
     void check_index(size_t index) const {
         if (index >= size_) {
-            throw DynamicArrayException("Index out of bounds");
+            throw SimpleException("Index out of bounds");
         }
     }
 
@@ -88,7 +131,7 @@ public:
     ~DynamicArray() {
         delete[] data_;
     }
-    // 拷贝赋值
+    // 拷贝赋值 deepcopy
     DynamicArray& operator=(const DynamicArray& other) {
         if (this != &other) {
             // 创建临时副本（异常安全）
@@ -136,22 +179,22 @@ public:
     }
 
     T& front() {
-        if (size_ == 0) throw DynamicArrayException("Array is empty");
+        if (size_ == 0) throw SimpleException("Array is empty");
         return data_[0];
     }
 
     const T& front() const {
-        if (size_ == 0) throw DynamicArrayException("Array is empty");
+        if (size_ == 0) throw SimpleException("Array is empty");
         return data_[0];
     }
 
     T& back() {
-        if (size_ == 0) throw DynamicArrayException("Array is empty");
+        if (size_ == 0) throw SimpleException("Array is empty");
         return data_[size_ - 1];
     }
 
     const T& back() const {
-        if (size_ == 0) throw DynamicArrayException("Array is empty");
+        if (size_ == 0) throw SimpleException("Array is empty");
         return data_[size_ - 1];
     }
 
@@ -216,7 +259,7 @@ public:
 
     // ========== 迭代器方法 ==========
     Iterator<T>* createIterator(){
-        return new ArrayIterator(this);
+        return new ArrayIterator<T>(this);
     }
     // ========== 工具函数 ==========
 

@@ -14,9 +14,11 @@ SOURCES += \
     model.cpp \
     simplestring.cpp \
     test_dynamicarray.cpp \
+    test_hashmap.cpp \
     test_simplestring.cpp
 
 HEADERS += \
+    HashMap.h \
     Iterable.h \
     Iterator.h \
     dynamicarray.h \

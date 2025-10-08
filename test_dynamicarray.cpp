@@ -75,33 +75,33 @@ void test_iterators();
 void test_exceptions();
 void test_complex_type();
 
-int main() {
-    std::cout << "Starting DynamicArray tests...\n" << std::endl;
+// int main() {
+//     std::cout << "Starting DynamicArray tests...\n" << std::endl;
 
-    try {
-        test_constructors_array();
-        test_accessors();
-        test_capacity();
-        test_modifiers();
-        test_copy_move_semantics();
-        test_iterators();
-        test_exceptions();
-        test_complex_type();
+//     try {
+//         test_constructors_array();
+//         test_accessors();
+//         test_capacity();
+//         test_modifiers();
+//         test_copy_move_semantics();
+//         test_iterators();
+//         test_exceptions();
+//         test_complex_type();
 
-        std::cout << "\nAll tests passed!" << std::endl;
-    } catch (const DynamicArrayException& e) {
-        std::cerr << "Test failed with exception: " << e.what() << std::endl;
-        return 1;
-    } catch (const std::exception& e) {
-        std::cerr << "Test failed with standard exception: " << e.what() << std::endl;
-        return 1;
-    } catch (...) {
-        std::cerr << "Test failed with unknown exception" << std::endl;
-        return 1;
-    }
+//         std::cout << "\nAll tests passed!" << std::endl;
+//     } catch (const SimpleException& e) {
+//         std::cerr << "Test failed with exception: " << e.what() << std::endl;
+//         return 1;
+//     } catch (const std::exception& e) {
+//         std::cerr << "Test failed with standard exception: " << e.what() << std::endl;
+//         return 1;
+//     } catch (...) {
+//         std::cerr << "Test failed with unknown exception" << std::endl;
+//         return 1;
+//     }
 
-    return 0;
-}
+//     return 0;
+// }
 
 void test_constructors_array() {
     std::cout << "=== Testing Constructors ===" << std::endl;
@@ -337,14 +337,14 @@ void test_exceptions() {
     try {
         arr.front();
         assert(false); // Should throw exception
-    } catch (const DynamicArrayException& e) {
+    } catch (const SimpleException& e) {
         assert(std::string(e.what()) == "Array is empty");
     }
 
     try {
         arr.back();
         assert(false); // Should throw exception
-    } catch (const DynamicArrayException& e) {
+    } catch (const SimpleException& e) {
         assert(std::string(e.what()) == "Array is empty");
     }
 
@@ -356,14 +356,14 @@ void test_exceptions() {
     try {
         arr.at(5);
         assert(false); // Should throw exception
-    } catch (const DynamicArrayException& e) {
+    } catch (const SimpleException& e) {
         assert(std::string(e.what()) == "Index out of bounds");
     }
 
     try {
         arr[5];
         assert(false); // Should throw exception
-    } catch (const DynamicArrayException& e) {
+    } catch (const SimpleException& e) {
         assert(std::string(e.what()) == "Index out of bounds");
     }
 
@@ -376,7 +376,7 @@ void test_exceptions() {
     try {
         arr2.reserve(2); // New capacity less than current size
         assert(false); // Should throw exception
-    } catch (const DynamicArrayException& e) {
+    } catch (const SimpleException& e) {
         assert(std::string(e.what()) == "New capacity cannot be less than current size");
     }
 

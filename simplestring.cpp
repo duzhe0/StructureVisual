@@ -1,6 +1,6 @@
 #include "simplestring.h"
 #include <cstring>  // 使用 strlen, strcpy, memcpy
-
+#include <cstdio>
 // ========== 私有辅助方法 ==========
 
 void SimpleString::reallocate(size_t new_capacity) {
@@ -91,6 +91,20 @@ SimpleString::SimpleString(SimpleString&& other) noexcept
     other.data_ = nullptr;
     other.length_ = 0;
     other.capacity_ = 0;
+}
+
+SimpleString::SimpleString(const int i) {
+        // 计算整数转换为字符串后需要的最大长度
+        // INT_MAX通常是10位数字，加上符号和结束符
+        const int bufferSize = 32; // 足够大的缓冲区
+        char buffer[bufferSize];
+        
+        // 使用snprintf安全地转换整数为字符串
+        snprintf(buffer, bufferSize, "%d", i);
+        
+        // 分配内存并复制字符串
+        data_ = new char[strlen(buffer) + 1];
+        strcpy(data_, buffer);
 }
 
 SimpleString::~SimpleString() {
@@ -186,6 +200,20 @@ bool SimpleString::operator>=(const SimpleString& other) const {
     return (*this > other) || (*this == other);
 }
 
+// ========== 拼接运算符 ==========
+SimpleString SimpleString::operator+(const SimpleString& other)const{
+    // 创建一个足够大的缓冲区
+    size_t len1 = std::strlen(this->c_str());
+    size_t len2 = std::strlen(other.c_str());
+    char* buffer = new char[len1 + len2 + 1];
+    
+    std::strcpy(buffer, this->c_str());
+    std::strcat(buffer, other.c_str());
+    
+    SimpleString result(buffer);
+    delete[] buffer;
+    return result;
+}
 // ========== 转换运算符 ==========
 SimpleString::operator const char*()const{
     if (data_ == nullptr) {

@@ -19,6 +19,7 @@ public:
     SimpleString(const char* str);              // C风格字符串构造函数
     SimpleString(const SimpleString& other);    // 拷贝构造函数
     SimpleString(SimpleString&& other) noexcept;// 移动构造函数
+    SimpleString(const int i);                   // 整数构造函数
     ~SimpleString();                            // 析构函数
 
     // ========== 赋值运算符 ==========
@@ -31,7 +32,8 @@ public:
     size_t length() const { return length_; }
     size_t capacity() const { return capacity_; }
     bool empty() const { return length_ == 0; }
-
+    // ========== 拼接运算符 ==========
+    SimpleString operator+(const SimpleString& other)const;
     // ========== 比较运算符 ==========
     bool operator==(const SimpleString& other) const;
     bool operator==(const char* other) const;
