@@ -12,19 +12,28 @@ SOURCES += \
     main.cpp \
     mainwindow.cpp \
     model.cpp \
-    simplestring.cpp \
-    test_dynamicarray.cpp \
-    test_hashmap.cpp \
-    test_simplestring.cpp
+    VisualItem.cpp \
+    GraphModel.cpp \
+    SortModel.cpp \
+    AlgorithmController.cpp \
+    simplestring.cpp
 
 HEADERS += \
+    Graph.h \
     HashMap.h \
+    IGraph.h \
     Iterable.h \
     Iterator.h \
+    ListGraph.h \
+    MatrixGraph.h \
     dynamicarray.h \
     mainwindow.h \
     model.h \
-    simplestring.h
+    simplestring.h \
+    VisualItem.h \
+    GraphModel.h \
+    SortModel.h \
+    AlgorithmController.h
 
 FORMS += \
     mainwindow.ui

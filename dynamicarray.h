@@ -69,23 +69,7 @@ private:
     size_t capacity_;
 
     // 重新分配内存
-    void reallocate(size_t new_capacity) {
-        if (new_capacity < size_) {
-            throw SimpleException("New capacity cannot be less than current size");
-        }
-
-        T* new_data = new T[new_capacity];
-
-        // 拷贝现有元素
-        for (size_t i = 0; i < size_; ++i) {
-            new_data[i] = std::move(data_[i]);  // 使用移动语义提高效率
-        }
-
-        // 清理旧内存并更新指针
-        delete[] data_;
-        data_ = new_data;
-        capacity_ = new_capacity;
-    }
+    void reallocate(size_t new_capacity);
 
     // 边界检查（内联以提高性能）
     void check_index(size_t index) const {
