@@ -280,14 +280,14 @@ void VertexItem::startVisitAnimation()
 
 // ==================== EdgeItem 实现 ====================
 
-EdgeItem::EdgeItem(VertexItem *from, VertexItem *to, int weight, QGraphicsItem *parent)
+EdgeItem::EdgeItem(VertexItem *from, VertexItem *to, int weight, bool isDirected, QGraphicsItem *parent)
     : VisualItem(parent)
     , m_fromVertex(from)
     , m_toVertex(to)
     , m_weight(weight)
     , m_lineColor(QColor(0, 0, 0)) // black
     , m_lineWidth(2)
-    , m_isDirected(true)
+    , m_isDirected(isDirected)
 {
     setBaseColor(QColor(0, 0, 0)); // black
     updatePosition();

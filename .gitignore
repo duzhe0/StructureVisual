@@ -81,3 +81,7 @@ CMakeLists.txt.user*
 .uic/
 /build*/
 /.vscode
+/hashmap总结.md
+/workingProgress.md
+/算法可视化系统 - 完整接口文档.md
+/项目总结.md

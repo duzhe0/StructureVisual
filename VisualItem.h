@@ -118,7 +118,7 @@ private:
 class EdgeItem : public VisualItem
 {
 public:
-    explicit EdgeItem(VertexItem *from, VertexItem *to, int weight = 0, QGraphicsItem *parent = nullptr);
+    explicit EdgeItem(VertexItem *from, VertexItem *to, int weight = 0, bool isDirected = true, QGraphicsItem *parent = nullptr);
     ~EdgeItem() = default;
 
     // 边特有属性

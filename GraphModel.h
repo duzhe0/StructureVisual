@@ -89,6 +89,10 @@ public:
     // 重置和清理
     void resetVisualization();
     void clearGraph();
+    
+    // 文件操作
+    bool saveToFile(const QString &fileName) const;
+    bool loadFromFile(const QString &fileName);
 
 signals:
     void algorithmStarted(GraphAlgorithm algorithm);

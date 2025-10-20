@@ -120,20 +120,42 @@ void MainWindow::setupMenuBar()
     QAction *openAction = m_fileMenu->addAction("打开(&O)");
     openAction->setShortcut(QKeySequence::Open);
     connect(openAction, &QAction::triggered, this, [this]() {
-        QString fileName = QFileDialog::getOpenFileName(this, "打开文件", "", "JSON文件 (*.json)");
+        QString fileName = QFileDialog::getOpenFileName(this, "打开图文件", "", "JSON文件 (*.json);;所有文件 (*.*)");
         if (!fileName.isEmpty()) {
-            // 这里可以添加文件加载逻辑
-            QMessageBox::information(this, "提示", "文件加载功能待实现");
+            if (m_currentMode == GraphMode && m_graphModel) {
+                if (m_graphModel->loadFromFile(fileName)) {
+                    m_statusLabel->setText(QString("已从文件加载图: %1").arg(fileName));
+                    QMessageBox::information(this, "成功", QString("图文件加载成功！\n\n文件: %1\n顶点数: %2\n边数: %3")
+                                           .arg(fileName)
+                                           .arg(m_graphModel->getVertexCount())
+                                           .arg(m_graphModel->getEdgeCount()));
+                } else {
+                    QMessageBox::warning(this, "错误", "文件加载失败，请检查文件格式是否正确。");
+                }
+            } else {
+                QMessageBox::information(this, "提示", "请在图算法模式下使用文件加载功能。");
+            }
         }
     });
     
     QAction *saveAction = m_fileMenu->addAction("保存(&S)");
     saveAction->setShortcut(QKeySequence::Save);
     connect(saveAction, &QAction::triggered, this, [this]() {
-        QString fileName = QFileDialog::getSaveFileName(this, "保存文件", "", "JSON文件 (*.json)");
+        QString fileName = QFileDialog::getSaveFileName(this, "保存图文件", "", "JSON文件 (*.json);;所有文件 (*.*)");
         if (!fileName.isEmpty()) {
-            // 这里可以添加文件保存逻辑
-            QMessageBox::information(this, "提示", "文件保存功能待实现");
+            if (m_currentMode == GraphMode && m_graphModel) {
+                if (m_graphModel->saveToFile(fileName)) {
+                    m_statusLabel->setText(QString("图已保存到文件: %1").arg(fileName));
+                    QMessageBox::information(this, "成功", QString("图文件保存成功！\n\n文件: %1\n顶点数: %2\n边数: %3")
+                                           .arg(fileName)
+                                           .arg(m_graphModel->getVertexCount())
+                                           .arg(m_graphModel->getEdgeCount()));
+                } else {
+                    QMessageBox::warning(this, "错误", "文件保存失败，请检查文件路径和权限。");
+                }
+            } else {
+                QMessageBox::information(this, "提示", "请在图算法模式下使用文件保存功能。");
+            }
         }
     });
     

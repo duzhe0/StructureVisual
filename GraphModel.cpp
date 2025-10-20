@@ -6,6 +6,14 @@
 #include <QtMath>
 #include <algorithm>
 #include <random>
+#include <QFile>
+#include <QTextStream>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QJsonParseError>
+#include <QStringConverter>
+#include <set>
 
 GraphModel::GraphModel(QObject *parent)
     : QObject(parent)
@@ -100,7 +108,7 @@ bool GraphModel::addEdge(const QString &from, const QString &to, int weight)
     VertexItem *fromVertex = m_vertices[from];
     VertexItem *toVertex = m_vertices[to];
     
-    EdgeItem *edge = new EdgeItem(fromVertex, toVertex, weight);
+    EdgeItem *edge = new EdgeItem(fromVertex, toVertex, weight, m_isDirected);
     m_edges[edgeKey] = edge;
     m_adjacencyList[from].insert(to);
     
@@ -693,4 +701,147 @@ std::vector<std::pair<QString, QString>> GraphModel::getAllEdgesSorted() const
     // 按权重排序（这里简化处理）
     std::sort(edges.begin(), edges.end());
     return edges;
+}
+
+// ==================== 文件操作实现 ====================
+
+bool GraphModel::saveToFile(const QString &fileName) const
+{
+    QFile file(fileName);
+    if (!file.open(QIODevice::WriteOnly)) {
+        qDebug() << "无法打开文件进行写入:" << fileName;
+        return false;
+    }
+    
+    QJsonObject graphObject;
+    
+    // 保存图的基本属性
+    graphObject["type"] = "graph";
+    graphObject["directed"] = m_isDirected;
+    graphObject["vertexCount"] = static_cast<int>(m_vertices.size());
+    graphObject["edgeCount"] = static_cast<int>(m_edges.size());
+    
+    // 保存顶点信息
+    QJsonArray verticesArray;
+    for (const auto &vertexPair : m_vertices) {
+        const QString &label = vertexPair.first;
+        VertexItem *vertex = vertexPair.second;
+        
+        QJsonObject vertexObject;
+        vertexObject["label"] = label;
+        vertexObject["x"] = vertex->pos().x();
+        vertexObject["y"] = vertex->pos().y();
+        vertexObject["radius"] = vertex->getRadius();
+        
+        verticesArray.append(vertexObject);
+    }
+    graphObject["vertices"] = verticesArray;
+    
+    // 保存边信息
+    QJsonArray edgesArray;
+    std::set<std::pair<QString, QString>> processedEdges; // 避免重复保存无向图的边
+    
+    for (const auto &edgePair : m_edges) {
+        const QString &from = edgePair.first.first;
+        const QString &to = edgePair.first.second;
+        EdgeItem *edge = edgePair.second;
+        
+        // 对于无向图，只保存一次边（避免重复）
+        if (!m_isDirected) {
+            std::pair<QString, QString> normalizedEdge = (from < to) ? 
+                std::make_pair(from, to) : std::make_pair(to, from);
+            if (processedEdges.find(normalizedEdge) != processedEdges.end()) {
+                continue;
+            }
+            processedEdges.insert(normalizedEdge);
+        }
+        
+        QJsonObject edgeObject;
+        edgeObject["from"] = from;
+        edgeObject["to"] = to;
+        edgeObject["weight"] = edge->getWeight();
+        edgeObject["directed"] = m_isDirected;
+        
+        edgesArray.append(edgeObject);
+    }
+    graphObject["edges"] = edgesArray;
+    
+    // 保存到文件
+    QJsonDocument document(graphObject);
+    QTextStream stream(&file);
+    stream.setEncoding(QStringConverter::Utf8);
+    stream << document.toJson();
+    
+    file.close();
+    qDebug() << "图已保存到文件:" << fileName;
+    return true;
+}
+
+bool GraphModel::loadFromFile(const QString &fileName)
+{
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly)) {
+        qDebug() << "无法打开文件进行读取:" << fileName;
+        return false;
+    }
+    
+    QTextStream stream(&file);
+    stream.setEncoding(QStringConverter::Utf8);
+    QString jsonString = stream.readAll();
+    file.close();
+    
+    QJsonParseError error;
+    QJsonDocument document = QJsonDocument::fromJson(jsonString.toUtf8(), &error);
+    
+    if (error.error != QJsonParseError::NoError) {
+        qDebug() << "JSON解析错误:" << error.errorString();
+        return false;
+    }
+    
+    QJsonObject graphObject = document.object();
+    
+    // 验证文件类型
+    if (graphObject["type"].toString() != "graph") {
+        qDebug() << "文件类型错误，不是图文件";
+        return false;
+    }
+    
+    // 清空当前图
+    clearGraph();
+    
+    // 加载图的基本属性
+    m_isDirected = graphObject["directed"].toBool();
+    
+    // 加载顶点
+    QJsonArray verticesArray = graphObject["vertices"].toArray();
+    for (const QJsonValue &value : verticesArray) {
+        QJsonObject vertexObject = value.toObject();
+        QString label = vertexObject["label"].toString();
+        qreal x = vertexObject["x"].toDouble();
+        qreal y = vertexObject["y"].toDouble();
+        qreal radius = vertexObject["radius"].toDouble(25.0); // 默认半径25
+        
+        addVertex(label, QPointF(x, y));
+        
+        // 设置顶点半径
+        VertexItem *vertex = getVertex(label);
+        if (vertex) {
+            vertex->setRadius(radius);
+        }
+    }
+    
+    // 加载边
+    QJsonArray edgesArray = graphObject["edges"].toArray();
+    for (const QJsonValue &value : edgesArray) {
+        QJsonObject edgeObject = value.toObject();
+        QString from = edgeObject["from"].toString();
+        QString to = edgeObject["to"].toString();
+        int weight = edgeObject["weight"].toInt(1);
+        
+        addEdge(from, to, weight);
+    }
+    
+    qDebug() << "图已从文件加载:" << fileName;
+    qDebug() << "顶点数:" << m_vertices.size() << "边数:" << m_edges.size();
+    return true;
 }
