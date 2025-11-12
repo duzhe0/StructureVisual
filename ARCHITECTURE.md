@@ -23,6 +23,40 @@
 │  IGraph  │  ListGraph  │  MatrixGraph  │  HashMap  │  Array  │
 └─────────────────────────────────────────────────────────────┘
 ```
+```
+m_controlPanel (QWidget - 主容器)
+│
+├── QVBoxLayout (主布局)
+    │
+    ├── [0] QGroupBox "算法选择" (子窗口1)
+    │   │
+    │   └── QVBoxLayout (子布局1)
+    │       │
+    │       ├── QLabel "算法:"
+    │       ├── QComboBox (下拉框)
+    │       ├── QLabel "起始顶点:"
+    │       ├── QLineEdit (输入框)
+    │       └── QCheckBox "有向图"
+    │
+    ├── [1] QGroupBox "算法控制" (子窗口2 - 来自基类)
+    │   │
+    │   └── QHBoxLayout (子布局2)
+    │       │
+    │       ├── QPushButton "开始"
+    │       ├── QPushButton "暂停"
+    │       └── ...
+    │
+    ├── [2] QGroupBox "动画速度" (子窗口3 - 来自基类)
+    │   │
+    │   └── QHBoxLayout (子布局3)
+    │       │
+    │       ├── QLabel "慢"
+    │       ├── QSlider (滑块)
+    │       └── QLabel "快"
+    │
+    └── ... (其他来自基类的组件)
+```
+
 
 ## 🏗️ 核心组件详解
 

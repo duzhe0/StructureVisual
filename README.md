@@ -221,10 +221,6 @@ StructureVisual/
 4. 推送到分支
 5. 创建Pull Request
 
-## 📄 许可证
-
-本项目采用MIT许可证 - 查看[LICENSE](LICENSE)文件了解详情
-
 ## 📞 联系方式
 
 如有问题或建议，请通过以下方式联系：

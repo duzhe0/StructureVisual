@@ -6,6 +6,7 @@
 #include <QLineEdit>
 #include <QTextCursor>
 #include <QDebug>
+//代码阅读了图的一半，排序还没看 应该差不多
 
 // ==================== AlgorithmController 基类实现 ====================
 
@@ -28,15 +29,16 @@ AlgorithmController::AlgorithmController(QObject *parent)
 {
 }
 
-void AlgorithmController::setAnimationSpeed(int speed)
+void AlgorithmController::setAnimationSpeed(int speed)//ok
 {
     if (m_animationSpeed != speed) {
         m_animationSpeed = speed;
+        //预留的信号，目前没有接收者
         emit speedChanged(speed);
     }
 }
 
-void AlgorithmController::setupControlPanel()
+void AlgorithmController::setupControlPanel()//ok
 {
     m_controlPanel = new QWidget();
     QVBoxLayout *mainLayout = new QVBoxLayout(m_controlPanel);
@@ -112,19 +114,20 @@ void AlgorithmController::setupControlPanel()
     updateButtonStates();
 }
 
-void AlgorithmController::updateButtonStates()
+void AlgorithmController::updateButtonStates()//ok
 {
     if (!m_startButton) return;
     
     m_startButton->setEnabled(!m_isRunning);
     m_pauseButton->setEnabled(m_isRunning && !m_isPaused);
-    m_resumeButton->setEnabled(m_isRunning && m_isPaused);
+    m_resumeButton->setEnabled(m_isRunning && m_isPaused);//中断后继续开始
     m_stopButton->setEnabled(m_isRunning);
     m_stepButton->setEnabled(m_isRunning && m_isPaused);
     m_resetButton->setEnabled(!m_isRunning);
 }
 
-void AlgorithmController::logMessage(const QString &message)
+void AlgorithmController::logMessage(const QString &message)//ok
+//写算法日志的函数
 {
     if (m_logTextEdit) {
         m_logTextEdit->append(QString("[%1] %2")
@@ -134,7 +137,9 @@ void AlgorithmController::logMessage(const QString &message)
     }
 }
 
-void AlgorithmController::updateProgress(int current, int total)
+void AlgorithmController::updateProgress(int current, int total)//ok
+//目前没有被调用 
+//更新进度条的函数
 {
     if (m_progressBar && total > 0) {
         int percentage = (current * 100) / total;
@@ -144,7 +149,7 @@ void AlgorithmController::updateProgress(int current, int total)
 
 // ==================== GraphAlgorithmController 实现 ====================
 
-GraphAlgorithmController::GraphAlgorithmController(QObject *parent)
+GraphAlgorithmController::GraphAlgorithmController(QObject *parent)//ok
     : AlgorithmController(parent)
     , m_graphModel(nullptr)
     , m_algorithmComboBox(nullptr)
@@ -167,14 +172,16 @@ GraphAlgorithmController::GraphAlgorithmController(QObject *parent)
     setupControlPanel();
 }
 
-QWidget* GraphAlgorithmController::createControlPanel()
+QWidget* GraphAlgorithmController::createControlPanel()//ok
 {
     return m_controlPanel;
 }
 
-void GraphAlgorithmController::setGraphModel(GraphModel *model)
+void GraphAlgorithmController::setGraphModel(GraphModel *model)//ok
+//先断开，后连接
 {
     if (m_graphModel) {
+        //断开从 m_graphModel 发出的所有信号到 this（当前控制器类对象）的所有槽函数的连接
         disconnect(m_graphModel, nullptr, this, nullptr);
     }
     
@@ -190,7 +197,7 @@ void GraphAlgorithmController::setGraphModel(GraphModel *model)
     }
 }
 
-void GraphAlgorithmController::startAlgorithm()
+void GraphAlgorithmController::startAlgorithm()//ok
 {
     if (!m_graphModel) return;
     
@@ -204,41 +211,41 @@ void GraphAlgorithmController::startAlgorithm()
     }
     
     int algorithmIndex = m_algorithmComboBox->currentIndex();
+    //Index转换为枚举类
     GraphAlgorithm algorithm = static_cast<GraphAlgorithm>(algorithmIndex);
-    
     m_graphModel->executeAlgorithm(algorithm, startVertex);
     logMessage(QString("开始执行算法: %1").arg(getCurrentAlgorithmName()));
 }
 
-void GraphAlgorithmController::pauseAlgorithm()
+void GraphAlgorithmController::pauseAlgorithm()//ok
 {
     if (m_graphModel) {
         m_graphModel->pauseAlgorithm();
     }
 }
 
-void GraphAlgorithmController::resumeAlgorithm()
+void GraphAlgorithmController::resumeAlgorithm()//ok
 {
     if (m_graphModel) {
         m_graphModel->resumeAlgorithm();
     }
 }
 
-void GraphAlgorithmController::stopAlgorithm()
+void GraphAlgorithmController::stopAlgorithm()//ok
 {
     if (m_graphModel) {
         m_graphModel->stopAlgorithm();
     }
 }
 
-void GraphAlgorithmController::stepAlgorithm()
+void GraphAlgorithmController::stepAlgorithm()//ok
 {
     if (m_graphModel) {
         m_graphModel->stepAlgorithm();
     }
 }
 
-void GraphAlgorithmController::resetAlgorithm()
+void GraphAlgorithmController::resetAlgorithm()//ok
 {
     if (m_graphModel) {
         m_graphModel->resetVisualization();
@@ -246,7 +253,7 @@ void GraphAlgorithmController::resetAlgorithm()
     }
 }
 
-void GraphAlgorithmController::addVertex(const QString &label, const QPointF &position)
+void GraphAlgorithmController::addVertex(const QString &label, const QPointF &position)//ok
 {
     if (m_graphModel) {
         if (m_graphModel->addVertex(label, position)) {
@@ -257,7 +264,7 @@ void GraphAlgorithmController::addVertex(const QString &label, const QPointF &po
     }
 }
 
-void GraphAlgorithmController::removeVertex(const QString &label)
+void GraphAlgorithmController::removeVertex(const QString &label)//ok
 {
     if (m_graphModel) {
         if (m_graphModel->removeVertex(label)) {
@@ -268,7 +275,7 @@ void GraphAlgorithmController::removeVertex(const QString &label)
     }
 }
 
-void GraphAlgorithmController::addEdge(const QString &from, const QString &to, int weight)
+void GraphAlgorithmController::addEdge(const QString &from, const QString &to, int weight)//ok
 {
     if (m_graphModel) {
         if (m_graphModel->addEdge(from, to, weight)) {
@@ -279,7 +286,7 @@ void GraphAlgorithmController::addEdge(const QString &from, const QString &to, i
     }
 }
 
-void GraphAlgorithmController::removeEdge(const QString &from, const QString &to)
+void GraphAlgorithmController::removeEdge(const QString &from, const QString &to)//ok
 {
     if (m_graphModel) {
         if (m_graphModel->removeEdge(from, to)) {
@@ -290,7 +297,7 @@ void GraphAlgorithmController::removeEdge(const QString &from, const QString &to
     }
 }
 
-void GraphAlgorithmController::applyCircularLayout()
+void GraphAlgorithmController::applyCircularLayout()//ok
 {
     if (m_graphModel) {
         m_graphModel->applyCircularLayout();
@@ -298,7 +305,7 @@ void GraphAlgorithmController::applyCircularLayout()
     }
 }
 
-void GraphAlgorithmController::applyForceDirectedLayout()
+void GraphAlgorithmController::applyForceDirectedLayout()//ok
 {
     if (m_graphModel) {
         m_graphModel->applyForceDirectedLayout();
@@ -306,7 +313,7 @@ void GraphAlgorithmController::applyForceDirectedLayout()
     }
 }
 
-void GraphAlgorithmController::applyGridLayout(int columns)
+void GraphAlgorithmController::applyGridLayout(int columns)//ok
 {
     if (m_graphModel) {
         m_graphModel->applyGridLayout(columns);
@@ -314,14 +321,14 @@ void GraphAlgorithmController::applyGridLayout(int columns)
     }
 }
 
-void GraphAlgorithmController::setAlgorithm(int algorithmIndex)
+void GraphAlgorithmController::setAlgorithm(int algorithmIndex)//ok
 {
     if (m_algorithmComboBox) {
         m_algorithmComboBox->setCurrentIndex(algorithmIndex);
     }
 }
 
-QString GraphAlgorithmController::getCurrentAlgorithmName() const
+QString GraphAlgorithmController::getCurrentAlgorithmName() const//ok
 {
     if (!m_algorithmComboBox) return "";
     
@@ -337,7 +344,7 @@ QString GraphAlgorithmController::getCurrentAlgorithmName() const
     }
 }
 
-void GraphAlgorithmController::setupControlPanel()
+void GraphAlgorithmController::setupControlPanel()//ok
 {
     AlgorithmController::setupControlPanel();
     setupGraphControlPanel();
@@ -353,8 +360,12 @@ void GraphAlgorithmController::setupControlPanel()
     connect(m_resetButton, &QPushButton::clicked, this, &GraphAlgorithmController::onResetButtonClicked);
 }
 
-void GraphAlgorithmController::setupGraphControlPanel()
+void GraphAlgorithmController::setupGraphControlPanel()//ok
+//窗口-窗口布局-子窗口-子窗口布局-子窗口组件
+//链接 qt预设的组件信号 与 槽函数
 {
+    //layout方法默认返回基类指针 要用子类指针的功能需要向下转换
+    //转换完做检查保证可用
     QVBoxLayout *mainLayout = qobject_cast<QVBoxLayout*>(m_controlPanel->layout());
     if (!mainLayout) return;
     
@@ -386,21 +397,22 @@ void GraphAlgorithmController::setupGraphControlPanel()
     
     mainLayout->insertWidget(0, algorithmGroup);
     
-    // 连接信号
+    // connect(谁变化，发出的信号种类，要启动哪里的槽函数，槽函数的地址)
     connect(m_algorithmComboBox, &QComboBox::currentIndexChanged,
             this, &GraphAlgorithmController::onAlgorithmComboBoxChanged);
     connect(m_startVertexEdit, &QLineEdit::textChanged,
             this, &GraphAlgorithmController::onStartVertexChanged);
     connect(m_directedCheckBox, &QCheckBox::toggled,
-            this, &GraphAlgorithmController::onDirectedCheckBoxToggled);
+            this, &GraphAlgorithmController::onDirectedCheckBoxToggled);//toggled 切换
 }
 
-void GraphAlgorithmController::setupGraphOperationsPanel()
+void GraphAlgorithmController::setupGraphOperationsPanel()//ok
 {
     QVBoxLayout *mainLayout = qobject_cast<QVBoxLayout*>(m_controlPanel->layout());
     if (!mainLayout) return;
     
     m_graphOperationsGroup = new QGroupBox("图操作");
+    //网格布局 更精确定位 行坐标 列坐标
     QGridLayout *operationsLayout = new QGridLayout(m_graphOperationsGroup);
     
     // 顶点操作
@@ -438,11 +450,12 @@ void GraphAlgorithmController::setupGraphOperationsPanel()
     operationsLayout->addWidget(m_addEdgeButton, 1, 6);
     operationsLayout->addWidget(m_removeEdgeButton, 1, 7);
     
+    //把界面当作序列 后面的自动后移 插入第二个位置
     mainLayout->insertWidget(1, m_graphOperationsGroup);
     
     // 连接信号
     connect(m_addVertexButton, &QPushButton::clicked, [this]() {
-        QString label = m_vertexLabelEdit->text().trimmed();
+        QString label = m_vertexLabelEdit->text().trimmed();//trimmed修剪
         if (!label.isEmpty()) {
             addVertex(label);
             m_vertexLabelEdit->clear();
@@ -453,6 +466,7 @@ void GraphAlgorithmController::setupGraphOperationsPanel()
         QString label = m_vertexLabelEdit->text().trimmed();
         if (!label.isEmpty()) {
             removeVertex(label);
+            //清除输入框内容
             m_vertexLabelEdit->clear();
         }
     });
@@ -481,7 +495,9 @@ void GraphAlgorithmController::setupGraphOperationsPanel()
     });
 }
 
-void GraphAlgorithmController::setupLayoutPanel()
+void GraphAlgorithmController::setupLayoutPanel()//ok
+//三个图布局没实现
+//为什么目前的线不直接连接点的位置呢？
 {
     QVBoxLayout *mainLayout = qobject_cast<QVBoxLayout*>(m_controlPanel->layout());
     if (!mainLayout) return;
@@ -514,20 +530,22 @@ void GraphAlgorithmController::setupLayoutPanel()
 }
 
 // 槽函数实现
-void GraphAlgorithmController::onAlgorithmStarted()
+void GraphAlgorithmController::onAlgorithmStarted()//ok
 {
     m_isRunning = true;
     m_isPaused = false;
     updateButtonStates();
+    //Controller发出信号，传递给Viewer 
+    //为了可读性emit开头 功能等同于调用槽函数(不写emit)
     emit algorithmStarted();
 }
 
-void GraphAlgorithmController::onAlgorithmStepCompleted()
+void GraphAlgorithmController::onAlgorithmStepCompleted()//ok
 {
     emit stepCompleted("算法步骤完成");
 }
 
-void GraphAlgorithmController::onAlgorithmCompleted()
+void GraphAlgorithmController::onAlgorithmCompleted()//ok
 {
     m_isRunning = false;
     m_isPaused = false;
@@ -536,7 +554,7 @@ void GraphAlgorithmController::onAlgorithmCompleted()
     emit algorithmCompleted();
 }
 
-void GraphAlgorithmController::onAlgorithmPaused()
+void GraphAlgorithmController::onAlgorithmPaused()//ok
 {
     m_isPaused = true;
     updateButtonStates();
@@ -544,7 +562,7 @@ void GraphAlgorithmController::onAlgorithmPaused()
     emit algorithmPaused();
 }
 
-void GraphAlgorithmController::onAlgorithmResumed()
+void GraphAlgorithmController::onAlgorithmResumed()//ok
 {
     m_isPaused = false;
     updateButtonStates();
@@ -552,7 +570,7 @@ void GraphAlgorithmController::onAlgorithmResumed()
     emit algorithmResumed();
 }
 
-void GraphAlgorithmController::onAlgorithmStopped()
+void GraphAlgorithmController::onAlgorithmStopped()//ok
 {
     m_isRunning = false;
     m_isPaused = false;
@@ -561,39 +579,41 @@ void GraphAlgorithmController::onAlgorithmStopped()
     emit algorithmStopped();
 }
 
-void GraphAlgorithmController::onStartButtonClicked()
+void GraphAlgorithmController::onStartButtonClicked()//ok
 {
     startAlgorithm();
 }
 
-void GraphAlgorithmController::onPauseButtonClicked()
+void GraphAlgorithmController::onPauseButtonClicked()//ok
 {
     pauseAlgorithm();
 }
 
-void GraphAlgorithmController::onResumeButtonClicked()
+void GraphAlgorithmController::onResumeButtonClicked()//ok
 {
     resumeAlgorithm();
 }
 
-void GraphAlgorithmController::onStopButtonClicked()
+void GraphAlgorithmController::onStopButtonClicked()//ok
 {
     stopAlgorithm();
 }
 
-void GraphAlgorithmController::onStepButtonClicked()
+void GraphAlgorithmController::onStepButtonClicked()//ok
 {
     stepAlgorithm();
 }
 
-void GraphAlgorithmController::onResetButtonClicked()
+void GraphAlgorithmController::onResetButtonClicked()//ok
 {
     resetAlgorithm();
 }
 
-void GraphAlgorithmController::onAlgorithmComboBoxChanged(int index)
+void GraphAlgorithmController::onAlgorithmComboBoxChanged(int index)//ok
 {
+    //消除警告用的，其实没用
     Q_UNUSED(index)
+    //这里槽函数的签名声明了多余参数，其实不接受这个多余参数就可以了
     logMessage(QString("选择算法: %1").arg(getCurrentAlgorithmName()));
 }
 
@@ -602,7 +622,7 @@ void GraphAlgorithmController::onStartVertexChanged()
     // 可以在这里添加起始顶点验证逻辑
 }
 
-void GraphAlgorithmController::onDirectedCheckBoxToggled(bool checked)
+void GraphAlgorithmController::onDirectedCheckBoxToggled(bool checked)//ok
 {
     if (m_graphModel) {
         m_graphModel->setDirected(checked);
@@ -610,7 +630,7 @@ void GraphAlgorithmController::onDirectedCheckBoxToggled(bool checked)
     }
 }
 
-void GraphAlgorithmController::onSpeedSliderChanged(int value)
+void GraphAlgorithmController::onSpeedSliderChanged(int value)//ok
 {
     setAnimationSpeed(value);
 }
