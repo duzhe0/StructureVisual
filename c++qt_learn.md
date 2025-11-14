@@ -71,3 +71,5 @@ Controller层：emit algorithmCompleted() 转发信号
 View层：MainWindow::onAlgorithmCompleted() 接收
     ↓
 View层：更新UI（状态栏、进度条等）
+
+.ui文件的界面表达是代码的真子集

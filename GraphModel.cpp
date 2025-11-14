@@ -787,10 +787,13 @@ bool GraphModel::loadFromFile(const QString &fileName)
     
     QTextStream stream(&file);
     stream.setEncoding(QStringConverter::Utf8);
+    //用utf-8读取文本文件
+    //存储在QString中 以utf-16编码存储
     QString jsonString = stream.readAll();
     file.close();
     
     QJsonParseError error;
+    //toUtf8 将QString转换为utf-8编码
     QJsonDocument document = QJsonDocument::fromJson(jsonString.toUtf8(), &error);
     
     if (error.error != QJsonParseError::NoError) {
@@ -815,10 +818,10 @@ bool GraphModel::loadFromFile(const QString &fileName)
     // 加载顶点
     QJsonArray verticesArray = graphObject["vertices"].toArray();
     for (const QJsonValue &value : verticesArray) {
-        QJsonObject vertexObject = value.toObject();
-        QString label = vertexObject["label"].toString();
-        qreal x = vertexObject["x"].toDouble();
-        qreal y = vertexObject["y"].toDouble();
+        QJsonObject vertexObject = value.toObject();//从JSON value到JSON Object
+        QString label = vertexObject["label"].toString();//从JSON Object到QString
+        qreal x = vertexObject["x"].toDouble();//从JSON Object到qreal
+        qreal y = vertexObject["y"].toDouble();//从JSON Object到qreal
         qreal radius = vertexObject["radius"].toDouble(25.0); // 默认半径25
         
         addVertex(label, QPointF(x, y));
@@ -833,7 +836,7 @@ bool GraphModel::loadFromFile(const QString &fileName)
     // 加载边
     QJsonArray edgesArray = graphObject["edges"].toArray();
     for (const QJsonValue &value : edgesArray) {
-        QJsonObject edgeObject = value.toObject();
+        QJsonObject edgeObject = value.toObject();//从JSON value到JSON Object
         QString from = edgeObject["from"].toString();
         QString to = edgeObject["to"].toString();
         int weight = edgeObject["weight"].toInt(1);

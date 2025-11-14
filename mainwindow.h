@@ -13,6 +13,9 @@
 #include <QProgressBar>
 #include <QTimer>
 
+//前向声明用于生成指针 让编译器知道有这个类 但不定义 避免循环依赖
+//早期有Qt:: 与 无namespace 的声明方式
+//以下写法能自动适应两者
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class MainWindow;

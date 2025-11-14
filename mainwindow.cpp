@@ -43,6 +43,8 @@ MainWindow::MainWindow(QWidget *parent)
     , m_helpMenu(nullptr)
     , m_currentMode(GraphMode)
 {
+    //ui指针 指向ui类 MainWindow 的实例 实例中包含所有从.ui文件生成的UI组件
+    //把ui实例的setupUi方法绑定到当前窗口this上 让ui类负责初始化窗口的UI组件
     ui->setupUi(this);
     
     // 设置窗口属性
@@ -52,7 +54,7 @@ MainWindow::MainWindow(QWidget *parent)
     
     // 初始化组件
     initializeModels();
-    setupUI();
+    setupUI();//这里用新ui代替了.ui文件中的ui
     setupMenuBar();
     setupStatusBar();
     connectSignals();
@@ -70,6 +72,8 @@ void MainWindow::setupUI()
 {
     // 创建主分割器
     m_mainSplitter = new QSplitter(Qt::Horizontal, this);
+    //只能有一个中央组件
+    //移除 但不删除旧的中央组件
     setCentralWidget(m_mainSplitter);
     
     // 创建模式标签页
@@ -78,6 +82,8 @@ void MainWindow::setupUI()
     m_modeTabWidget->addTab(new QWidget(), "排序算法");
     
     // 创建可视化堆栈
+    //自动管理 显示/隐藏
+    //后设置显示的界面显示出来 形成栈结构
     m_visualizationStack = new QStackedWidget();
     
     // 设置图可视化
@@ -89,6 +95,9 @@ void MainWindow::setupUI()
     // 组装布局
     m_mainSplitter->addWidget(m_modeTabWidget);
     m_mainSplitter->addWidget(m_visualizationStack);
+    //参数语义 （组件索引，拉伸因子）
+    //第一个组件 modeTabWidget 固定宽度 
+    //第二个组件 visualizationStack 可伸缩
     m_mainSplitter->setStretchFactor(0, 0); // 控制面板固定宽度
     m_mainSplitter->setStretchFactor(1, 1); // 可视化区域可伸缩
     
@@ -104,11 +113,13 @@ void MainWindow::setupUI()
 
 void MainWindow::setupMenuBar()
 {
-    // 文件菜单
+    // 文件菜单 菜单空的可以放东西
     m_fileMenu = menuBar()->addMenu("文件(&F)");
-    
+    //QAction 动作 可以被菜单包含或按钮使用 表示一个菜单项或按钮的行为
     QAction *newAction = m_fileMenu->addAction("新建(&N)");
-    newAction->setShortcut(QKeySequence::New);
+    //Windows 快捷键 Ctrl+N
+    newAction->setShortcut(QKeySequence("Ctrl+N"));
+    //如果新建文件 清空图或排序的数据
     connect(newAction, &QAction::triggered, this, [this]() {
         if (m_currentMode == GraphMode) {
             m_graphModel->clearGraph();
@@ -118,10 +129,12 @@ void MainWindow::setupMenuBar()
     });
     
     QAction *openAction = m_fileMenu->addAction("打开(&O)");
-    openAction->setShortcut(QKeySequence::Open);
+    openAction->setShortcut(QKeySequence("Ctrl+O"));
     connect(openAction, &QAction::triggered, this, [this]() {
+        //参数语义 父窗口指针 标题 对话框打开时的初始目录 过滤器 默认文件名
+        //过滤器格式 "描述1 (模式1);;描述2 (模式2);;描述3 (模式3)"
         QString fileName = QFileDialog::getOpenFileName(this, "打开图文件", "", "JSON文件 (*.json);;所有文件 (*.*)");
-        if (!fileName.isEmpty()) {
+        if (!fileName.isEmpty()) {//如果确实有一个文件名被选中
             if (m_currentMode == GraphMode && m_graphModel) {
                 if (m_graphModel->loadFromFile(fileName)) {
                     m_statusLabel->setText(QString("已从文件加载图: %1").arg(fileName));
@@ -139,7 +152,7 @@ void MainWindow::setupMenuBar()
     });
     
     QAction *saveAction = m_fileMenu->addAction("保存(&S)");
-    saveAction->setShortcut(QKeySequence::Save);
+    saveAction->setShortcut(QKeySequence("Ctrl+S"));
     connect(saveAction, &QAction::triggered, this, [this]() {
         QString fileName = QFileDialog::getSaveFileName(this, "保存图文件", "", "JSON文件 (*.json);;所有文件 (*.*)");
         if (!fileName.isEmpty()) {
@@ -162,25 +175,25 @@ void MainWindow::setupMenuBar()
     m_fileMenu->addSeparator();
     
     QAction *exitAction = m_fileMenu->addAction("退出(&X)");
-    exitAction->setShortcut(QKeySequence::Quit);
+    exitAction->setShortcut(QKeySequence("Ctrl+Q"));
     connect(exitAction, &QAction::triggered, this, &QWidget::close);
     
     // 编辑菜单
     m_editMenu = menuBar()->addMenu("编辑(&E)");
     
     QAction *undoAction = m_editMenu->addAction("撤销(&U)");
-    undoAction->setShortcut(QKeySequence::Undo);
+    undoAction->setShortcut(QKeySequence("Ctrl+Z"));
     undoAction->setEnabled(false); // 暂时禁用
     
     QAction *redoAction = m_editMenu->addAction("重做(&R)");
-    redoAction->setShortcut(QKeySequence::Redo);
+    redoAction->setShortcut(QKeySequence("Ctrl+Y"));
     redoAction->setEnabled(false); // 暂时禁用
     
     // 视图菜单
     m_viewMenu = menuBar()->addMenu("视图(&V)");
     
     QAction *zoomInAction = m_viewMenu->addAction("放大(&I)");
-    zoomInAction->setShortcut(QKeySequence::ZoomIn);
+    zoomInAction->setShortcut(QKeySequence("Ctrl+Plus"));
     connect(zoomInAction, &QAction::triggered, this, [this]() {
         if (m_currentMode == GraphMode && m_graphView) {
             m_graphView->scale(1.2, 1.2);
@@ -190,7 +203,7 @@ void MainWindow::setupMenuBar()
     });
     
     QAction *zoomOutAction = m_viewMenu->addAction("缩小(&O)");
-    zoomOutAction->setShortcut(QKeySequence::ZoomOut);
+    zoomOutAction->setShortcut(QKeySequence("Ctrl+-"));
     connect(zoomOutAction, &QAction::triggered, this, [this]() {
         if (m_currentMode == GraphMode && m_graphView) {
             m_graphView->scale(0.8, 0.8);
@@ -263,6 +276,7 @@ void MainWindow::setupStatusBar()
     
     // 算法标签
     m_algorithmLabel = new QLabel("当前算法: 无");
+    //永久组件不会被挤动
     statusBar()->addPermanentWidget(m_algorithmLabel);
     
     // 进度条
@@ -287,17 +301,20 @@ void MainWindow::setupGraphVisualization()
     // 创建图场景和视图
     m_graphScene = new QGraphicsScene(this);
     m_graphScene->setSceneRect(-500, -500, 1000, 1000);
-    m_graphScene->setBackgroundBrush(QBrush(QColor(240, 240, 240)));
+    m_graphScene->setBackgroundBrush(QBrush(QColor(240, 240, 240)));//背景颜色
     
+    //graphView 是m_graphScene的视图
     m_graphView = new QGraphicsView(m_graphScene);
-    m_graphView->setRenderHint(QPainter::Antialiasing);
-    m_graphView->setDragMode(QGraphicsView::RubberBandDrag);
-    m_graphView->setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
+    m_graphView->setRenderHint(QPainter::Antialiasing);//抗锯齿
+    m_graphView->setDragMode(QGraphicsView::RubberBandDrag);//橡皮筋拖拽
+    m_graphView->setViewportUpdateMode(QGraphicsView::FullViewportUpdate);//全视口更新
     
     // 设置图模型的场景
+    //m_graphScene是m_graphModel的场景
     m_graphModel->setScene(m_graphScene);
     
     // 创建图控制器
+    //m_graphController是m_graphModel的控制器
     m_graphController = new GraphAlgorithmController(this);
     m_graphController->setGraphModel(m_graphModel);
     
@@ -306,6 +323,7 @@ void MainWindow::setupGraphVisualization()
     QVBoxLayout *graphControlLayout = new QVBoxLayout(graphControlWidget);
     
     // 添加图控制器面板
+    //graphControlPanel是m_graphController的控制面板
     QWidget *graphControlPanel = m_graphController->createControlPanel();
     graphControlLayout->addWidget(graphControlPanel);
     
@@ -346,7 +364,7 @@ void MainWindow::setupGraphVisualization()
     exampleLayout->addWidget(clearGraphBtn);
     
     graphControlLayout->addWidget(exampleGroup);
-    graphControlLayout->addStretch();
+    graphControlLayout->addStretch();//拉伸因子为1 自动填充剩余空间
     
     // 设置图模式标签页
     m_modeTabWidget->widget(0)->setLayout(new QVBoxLayout());

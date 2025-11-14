@@ -13,6 +13,8 @@
 #include <QFont>
 #include <QPen>
 #include <QBrush>
+#include <QPainterPath>
+#include <QPainterPathStroker>
 
 // 可视化元素状态枚举
 enum class VisualState {
@@ -61,6 +63,7 @@ protected:
     // QGraphicsItem 接口
     QRectF boundingRect() const override;
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
+    QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
     
     // 状态颜色映射
     QColor getStateColor() const;
@@ -87,6 +90,8 @@ private:
 // 顶点可视化项
 class VertexItem : public VisualItem
 {
+    Q_OBJECT
+
 public:
     explicit VertexItem(const QString &label, const QPointF &position, QGraphicsItem *parent = nullptr);
     ~VertexItem() = default;
@@ -103,9 +108,16 @@ public:
     void startDeleteAnimation();
     void startVisitAnimation();
 
+signals:
+    // 当顶点位置改变时发出信号
+    void positionChanged(const QPointF &newPosition);
+
 protected:
     QRectF boundingRect() const override;
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
+    
+    // 重写itemChange以检测位置变化
+    QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
 
 private:
     QString m_label;
@@ -117,6 +129,8 @@ private:
 // 边可视化项
 class EdgeItem : public VisualItem
 {
+    Q_OBJECT
+
 public:
     explicit EdgeItem(VertexItem *from, VertexItem *to, int weight = 0, bool isDirected = true, QGraphicsItem *parent = nullptr);
     ~EdgeItem() = default;
@@ -139,12 +153,17 @@ public:
 
 protected:
     QRectF boundingRect() const override;
+    QPainterPath shape() const override;
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
     
-    // 计算边的几何信息
+    // 计算边的几何信息（在局部坐标系中）
     QPointF getStartPoint() const;
     QPointF getEndPoint() const;
     QPointF getWeightLabelPosition() const;
+    
+    // 连接顶点位置变化信号
+    void connectVertexSignals();
+    void disconnectVertexSignals();
 
 private:
     VertexItem *m_fromVertex;
@@ -157,6 +176,13 @@ private:
     // 箭头绘制
     void drawArrow(QPainter *painter, const QPointF &start, const QPointF &end);
     QPolygonF createArrowHead(const QPointF &start, const QPointF &end, qreal arrowSize = 10.0);
+    
+    // 边宽度（用于shape()计算）
+    qreal m_edgeWidth;
+    
+private slots:
+    // 当顶点位置变化时自动更新边
+    void onVertexPositionChanged();
 };
 
 // 排序柱状图项
