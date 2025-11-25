@@ -6,7 +6,6 @@
 #include <QtMath>
 #include <algorithm>
 #include <random>
-#include <climits>
 #include <QFile>
 #include <QTextStream>
 #include <QJsonDocument>
@@ -15,6 +14,8 @@
 #include <QJsonParseError>
 #include <QStringConverter>
 #include <set>
+#include <climits>
+#include <map>
 
 GraphModel::GraphModel(QObject *parent)
     : QObject(parent)
@@ -235,7 +236,7 @@ void GraphModel::executeAlgorithm(GraphAlgorithm algorithm, const QString &start
             generateDijkstraSteps(startVertex);
             break;
         case GraphAlgorithm::Prim:
-            generatePrimSteps();
+            generatePrimSteps(startVertex);
             break;
         case GraphAlgorithm::Kruskal:
             generateKruskalSteps();
@@ -550,31 +551,365 @@ void GraphModel::generateDijkstraSteps(const QString &startVertex)
     }
     
     addAlgorithmStep(QString("开始Dijkstra最短路径算法，从顶点 %1 开始").arg(startVertex), 
-                    {startVertex}, {}, VisualState::Current);
+                    {startVertex}, {}, VisualState::Visited);
     
-    // 这里可以实现完整的Dijkstra算法步骤
-    addAlgorithmStep("Dijkstra算法完成", {}, {}, VisualState::Normal);
+    // 距离映射：顶点 -> 最短距离
+    std::map<QString, int> distances;
+    // 前驱映射：顶点 -> 前驱顶点
+    std::map<QString, QString> predecessors;
+    // 未访问顶点集合
+    std::set<QString> unvisited;
+    
+    // 初始化：所有顶点距离为无穷大，起始顶点距离为0
+    for (const auto &pair : m_vertices) {
+        distances[pair.first] = INT_MAX;
+        unvisited.insert(pair.first);
+    }
+    distances[startVertex] = 0;
+    
+    while (!unvisited.empty()) {
+        // 找到未访问顶点中距离最小的
+        QString current;
+        int minDist = INT_MAX;
+        for (const QString &v : unvisited) {
+            if (distances[v] < minDist) {
+                minDist = distances[v];
+                current = v;
+            }
+        }
+        
+        // 如果所有未访问顶点距离都是无穷大，说明图不连通
+        if (minDist == INT_MAX) {
+            break;
+        }
+        
+        unvisited.erase(current);
+        
+        if (current != startVertex) {
+            addAlgorithmStep(QString("选择距离最小的未访问顶点 %1 (距离: %2)").arg(current).arg(minDist),
+                            {current}, {}, VisualState::Visited);
+        }
+        
+        // 更新邻居的距离
+        std::vector<QString> neighbors = getNeighbors(current);
+        for (const QString &neighbor : neighbors) {
+            if (unvisited.find(neighbor) == unvisited.end()) {
+                continue;  // 已访问，跳过
+            }
+            
+            EdgeItem *edge = getEdge(current, neighbor);
+            if (!edge) {
+                // 无向图，尝试反向边
+                edge = getEdge(neighbor, current);
+            }
+            
+            if (edge) {
+                int weight = edge->getWeight();
+                int newDist = distances[current] + weight;
+                
+                if (newDist < distances[neighbor]) {
+                    QString prevPred = predecessors.find(neighbor) != predecessors.end() ? predecessors[neighbor] : "无";
+                    predecessors[neighbor] = current;  // 更新前驱顶点
+                    addAlgorithmStep(QString("发现更短路径到 %1：%2 -> %3 (新距离: %4，前驱: %2)").arg(neighbor)
+                                    .arg(current).arg(neighbor).arg(newDist),
+                                    {neighbor}, {{current, neighbor}}, VisualState::Current);
+                    distances[neighbor] = newDist;
+                } else {
+                    addAlgorithmStep(QString("检查到 %1 的路径：%2 -> %3 (距离: %4，不更新)").arg(neighbor)
+                                    .arg(current).arg(neighbor).arg(distances[neighbor]),
+                                    {neighbor}, {{current, neighbor}}, VisualState::Normal);
+                }
+            }
+        }
+        
+        if (current != startVertex) {
+            addAlgorithmStep(QString("顶点 %1 已处理完成，距离: %2").arg(current).arg(distances[current]),
+                            {current}, {}, VisualState::Visited);
+        }
+    }
+    
+    // 显示最短路径结果
+    addAlgorithmStep("Dijkstra算法完成，开始显示最短路径结果", {}, {}, VisualState::Normal);
+    
+    // 为每个可达顶点显示最短路径
+    for (const auto &pair : m_vertices) {
+        const QString &target = pair.first;
+        if (target == startVertex) {
+            continue;  // 跳过起始顶点
+        }
+        
+        if (distances[target] == INT_MAX) {
+            addAlgorithmStep(QString("顶点 %1 不可达").arg(target), {target}, {}, VisualState::Normal);
+            continue;
+        }
+        
+        // 回溯路径
+        std::vector<QString> path;
+        QString current = target;
+        while (current != startVertex && predecessors.find(current) != predecessors.end()) {
+            path.push_back(current);
+            current = predecessors[current];
+        }
+        path.push_back(startVertex);
+        std::reverse(path.begin(), path.end());
+        
+        // 构建路径字符串
+        QString pathStr;
+        for (size_t i = 0; i < path.size(); i++) {
+            if (i > 0) pathStr += " -> ";
+            pathStr += path[i];
+        }
+        
+        // 构建边列表用于高亮显示
+        std::vector<std::pair<QString, QString>> pathEdges;
+        for (size_t i = 0; i < path.size() - 1; i++) {
+            pathEdges.push_back(std::make_pair(path[i], path[i + 1]));
+        }
+        
+        addAlgorithmStep(QString("到顶点 %1 的最短路径：%2 (距离: %3)").arg(target).arg(pathStr).arg(distances[target]),
+                        path, pathEdges, VisualState::Selected);
+    }
+    
+    addAlgorithmStep("所有最短路径显示完成", {}, {}, VisualState::Normal);
 }
 
-void GraphModel::generatePrimSteps()
+void GraphModel::generatePrimSteps(const QString &startVertex)
 {
-    addAlgorithmStep("开始Prim最小生成树算法", {}, {}, VisualState::Current);
-    // 实现Prim算法步骤
-    addAlgorithmStep("Prim算法完成", {}, {}, VisualState::Normal);
+    if (m_vertices.empty()) {
+        return;
+    }
+    
+    // 确定起始顶点：如果指定了且存在则使用，否则使用第一个顶点
+    QString actualStartVertex = startVertex;
+    if (actualStartVertex.isEmpty() || m_vertices.find(actualStartVertex) == m_vertices.end()) {
+        actualStartVertex = m_vertices.begin()->first;
+        if (!startVertex.isEmpty()) {
+            addAlgorithmStep(QString("指定的起始顶点 %1 不存在，使用顶点 %2 作为起始点").arg(startVertex).arg(actualStartVertex),
+                            {actualStartVertex}, {}, VisualState::Current);
+        }
+    }
+    
+    addAlgorithmStep(QString("开始Prim最小生成树算法，起始顶点: %1").arg(actualStartVertex), 
+                    {actualStartVertex}, {}, VisualState::Current);
+    
+    // 已加入最小生成树的顶点集合
+    std::set<QString> mstVertices;
+    // 已加入最小生成树的边集合
+    std::set<std::pair<QString, QString>> mstEdges;
+    
+    // 使用指定的起始顶点
+    mstVertices.insert(actualStartVertex);
+    
+    addAlgorithmStep(QString("选择起始顶点 %1 加入最小生成树").arg(startVertex),
+                    {startVertex}, {}, VisualState::Current);
+    
+    while (mstVertices.size() < m_vertices.size()) {
+        // 找到连接已访问顶点和未访问顶点的最小权重边
+        QString minFrom, minTo;
+        int minWeight = INT_MAX;
+        
+        for (const QString &v : mstVertices) {
+            std::vector<QString> neighbors = getNeighbors(v);
+            for (const QString &neighbor : neighbors) {
+                if (mstVertices.find(neighbor) != mstVertices.end()) {
+                    continue;  // 邻居已在MST中，跳过
+                }
+                
+                EdgeItem *edge = getEdge(v, neighbor);
+                if (!edge && !m_isDirected) {
+                    edge = getEdge(neighbor, v);
+                }
+                
+                if (edge) {
+                    int weight = edge->getWeight();
+                    if (weight < minWeight) {
+                        minWeight = weight;
+                        minFrom = v;
+                        minTo = neighbor;
+                    }
+                }
+            }
+        }
+        
+        if (minWeight == INT_MAX) {
+            // 图不连通，无法继续
+            addAlgorithmStep("图不连通，无法生成完整的最小生成树", {}, {}, VisualState::Normal);
+            break;
+        }
+        
+        // 将找到的最小边加入MST
+        mstVertices.insert(minTo);
+        mstEdges.insert(std::make_pair(minFrom, minTo));
+        
+        addAlgorithmStep(QString("找到最小权重边：%1 -> %2 (权重: %3)，加入最小生成树").arg(minFrom).arg(minTo).arg(minWeight),
+                        {minFrom, minTo}, {{minFrom, minTo}}, VisualState::Selected);
+        
+        addAlgorithmStep(QString("顶点 %1 已加入最小生成树").arg(minTo),
+                        {minTo}, {}, VisualState::Selected);
+    }
+    
+    addAlgorithmStep(QString("Prim算法完成，最小生成树包含 %1 个顶点和 %2 条边").arg(mstVertices.size()).arg(mstEdges.size()),
+                    {}, {}, VisualState::Normal);
 }
 
 void GraphModel::generateKruskalSteps()
 {
+    if (m_vertices.empty()) {
+        return;
+    }
+    
     addAlgorithmStep("开始Kruskal最小生成树算法", {}, {}, VisualState::Current);
-    // 实现Kruskal算法步骤
-    addAlgorithmStep("Kruskal算法完成", {}, {}, VisualState::Normal);
+    
+    // 收集所有边并按权重排序
+    struct EdgeInfo {
+        QString from;
+        QString to;
+        int weight;
+    };
+    
+    std::vector<EdgeInfo> allEdges;
+    for (const auto &pair : m_edges) {
+        EdgeItem *edge = pair.second;
+        if (edge) {
+            allEdges.push_back({pair.first.first, pair.first.second, edge->getWeight()});
+        }
+    }
+    
+    // 按权重排序
+    std::sort(allEdges.begin(), allEdges.end(), 
+              [](const EdgeInfo &a, const EdgeInfo &b) { return a.weight < b.weight; });
+    
+    addAlgorithmStep(QString("收集所有边并按权重排序，共 %1 条边").arg(allEdges.size()),
+                    {}, {}, VisualState::Normal);
+    
+    // 并查集：每个顶点的父节点
+    std::map<QString, QString> parent;
+    for (const auto &pair : m_vertices) {
+        parent[pair.first] = pair.first;  // 初始时每个顶点是自己的父节点
+    }
+    
+    // 查找根节点
+    auto findRoot = [&](const QString &v) -> QString {
+        QString root = v;
+        // 找到祖宗-祖宗的父亲是它自己
+        while (parent[root] != root) {
+            //往上找一级
+            root = parent[root];
+        }
+        // 路径压缩
+        //
+        QString temp = v;
+        //把从v到root之间的parent都设为祖宗，省的待会再找一遍
+        while (parent[temp] != root) {
+            QString next = parent[temp];
+            parent[temp] = root;
+            temp = next;
+        }
+        return root;
+    };
+    
+    // 已加入最小生成树的边集合
+    std::set<std::pair<QString, QString>> mstEdges;
+    int edgesAdded = 0;
+    
+    for (const auto &edgeInfo : allEdges) {
+        QString rootFrom = findRoot(edgeInfo.from);
+        QString rootTo = findRoot(edgeInfo.to);
+        
+        if (rootFrom != rootTo) {
+            // 不在同一连通分量中，可以加入MST
+            parent[rootFrom] = rootTo;  // 合并两个连通分量
+            mstEdges.insert(std::make_pair(edgeInfo.from, edgeInfo.to));
+            edgesAdded++;
+            
+            addAlgorithmStep(QString("选择边：%1 -> %2 (权重: %3)，加入最小生成树").arg(edgeInfo.from)
+                            .arg(edgeInfo.to).arg(edgeInfo.weight),
+                            {edgeInfo.from, edgeInfo.to}, {{edgeInfo.from, edgeInfo.to}}, VisualState::Selected);
+        }
+        
+        // 如果已经添加了n-1条边，MST完成
+        if (edgesAdded >= static_cast<int>(m_vertices.size()) - 1) {
+            break;
+        }
+    }
+    
+    addAlgorithmStep(QString("Kruskal算法完成，最小生成树包含 %1 条边").arg(edgesAdded),
+                    {}, {}, VisualState::Normal);
 }
 
 void GraphModel::generateTopologicalSortSteps()
 {
+    if (m_vertices.empty()) {
+        return;
+    }
+    
+    if (!m_isDirected) {
+        addAlgorithmStep("拓扑排序只能用于有向图", {}, {}, VisualState::Normal);
+        return;
+    }
+    
     addAlgorithmStep("开始拓扑排序", {}, {}, VisualState::Current);
-    // 实现拓扑排序步骤
-    addAlgorithmStep("拓扑排序完成", {}, {}, VisualState::Normal);
+    
+    // 计算每个顶点的入度
+    std::map<QString, int> inDegree;
+    for (const auto &pair : m_vertices) {
+        inDegree[pair.first] = 0;
+    }
+    
+    for (const auto &pair : m_edges) {
+        inDegree[pair.first.second]++;  // 目标顶点入度+1
+    }
+    
+    addAlgorithmStep("计算每个顶点的入度", {}, {}, VisualState::Normal);
+    
+    // 队列：存储入度为0的顶点
+    std::queue<QString> zeroInDegreeQueue;
+    for (const auto &pair : inDegree) {
+        if (pair.second == 0) {
+            zeroInDegreeQueue.push(pair.first);
+            addAlgorithmStep(QString("顶点 %1 入度为0，加入队列").arg(pair.first),
+                            {pair.first}, {}, VisualState::Current);
+        }
+    }
+    
+    std::vector<QString> topologicalOrder;
+    
+    while (!zeroInDegreeQueue.empty()) {
+        QString current = zeroInDegreeQueue.front();
+        zeroInDegreeQueue.pop();
+        
+        topologicalOrder.push_back(current);
+        
+        addAlgorithmStep(QString("处理顶点 %1 (拓扑序第 %2 个)").arg(current).arg(topologicalOrder.size()),
+                        {current}, {}, VisualState::Visited);
+        
+        // 减少所有邻居的入度
+        std::vector<QString> neighbors = getNeighbors(current);
+        for (const QString &neighbor : neighbors) {
+            inDegree[neighbor]--;
+            
+            addAlgorithmStep(QString("减少顶点 %1 的入度，当前入度: %2").arg(neighbor).arg(inDegree[neighbor]),
+                            {neighbor}, {{current, neighbor}}, VisualState::Current);
+            
+            if (inDegree[neighbor] == 0) {
+                zeroInDegreeQueue.push(neighbor);
+                addAlgorithmStep(QString("顶点 %1 入度变为0，加入队列").arg(neighbor),
+                                {neighbor}, {}, VisualState::Current);
+            }
+        }
+    }
+    
+    if (topologicalOrder.size() < m_vertices.size()) {
+        addAlgorithmStep("图中存在环，无法完成拓扑排序", {}, {}, VisualState::Normal);
+    } else {
+        QString orderStr = "拓扑排序结果: ";
+        for (size_t i = 0; i < topologicalOrder.size(); i++) {
+            if (i > 0) orderStr += " -> ";
+            orderStr += topologicalOrder[i];
+        }
+        addAlgorithmStep(orderStr, {}, {}, VisualState::Normal);
+        addAlgorithmStep("拓扑排序完成", {}, {}, VisualState::Normal);
+    }
 }
 
 void GraphModel::resetAlgorithmState()
@@ -589,7 +924,6 @@ void GraphModel::resetAlgorithmState()
     while (!m_dfsStack.empty()) {
         m_dfsStack.pop();
     }
-    
     resetVisualization();
 }
 

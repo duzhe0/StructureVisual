@@ -137,7 +137,7 @@ private:
     void generateDFSSteps(const QString &startVertex);
     void generateBFSSteps(const QString &startVertex);
     void generateDijkstraSteps(const QString &startVertex);
-    void generatePrimSteps();
+    void generatePrimSteps(const QString &startVertex);
     void generateKruskalSteps();
     void generateTopologicalSortSteps();
     
