@@ -6,6 +6,7 @@
 #include <QtMath>
 #include <algorithm>
 #include <random>
+#include <climits>
 #include <QFile>
 #include <QTextStream>
 #include <QJsonDocument>
@@ -450,38 +451,59 @@ void GraphModel::generateDFSSteps(const QString &startVertex)
     if (m_vertices.find(startVertex) == m_vertices.end()) {
         return;
     }
-    
     addAlgorithmStep(QString("开始深度优先搜索，从顶点 %1 开始").arg(startVertex), 
                     {startVertex}, {}, VisualState::Current);
-    
     std::stack<QString> stack;
     std::set<QString> visited;
+    std::set<QString> inStack;  // 记录已在栈中的顶点，避免重复入栈
     
     stack.push(startVertex);
+    inStack.insert(startVertex);
     
-    while (!stack.empty()) {
+    while(!stack.empty()){
         QString current = stack.top();
         stack.pop();
+        inStack.erase(current);  // 从栈中移除时，清除标记
         
-        if (visited.find(current) != visited.end()) {
+        // 如果该元素已访问，则跳过
+        if(visited.find(current) != visited.end()){
             continue;
         }
         
-        visited.insert(current);
+        // 访问该元素
         addAlgorithmStep(QString("访问顶点 %1").arg(current), 
                         {current}, {}, VisualState::Visited);
+        visited.insert(current);
         
+        // 获取所有邻居
         std::vector<QString> neighbors = getNeighbors(current);
-        for (const QString &neighbor : neighbors) {
-            if (visited.find(neighbor) == visited.end()) {
-                addAlgorithmStep(QString("发现未访问的邻居 %1，加入栈中").arg(neighbor), 
-                                {current, neighbor}, {{current, neighbor}}, VisualState::Current);
+        for (const QString &neighbor : neighbors){
+            // 如果邻居未访问且不在栈中，则加入栈
+            if(visited.find(neighbor) == visited.end() && 
+               inStack.find(neighbor) == inStack.end()){
                 stack.push(neighbor);
+                inStack.insert(neighbor);  // 标记已入栈
+                // 只把新发现的邻居设为Current状态，current保持Visited状态
+                addAlgorithmStep(QString("发现未访问的邻居 %1，加入栈中").arg(neighbor), 
+                                {neighbor}, {{current, neighbor}}, VisualState::Current);
             }
         }
     }
-    
     addAlgorithmStep("深度优先搜索完成", {}, {}, VisualState::Normal);
+    
+    /*
+    如果起始点不存在退出
+    建立空栈
+    建立空集合
+    起始点入栈
+    while(栈非空){
+        栈顶元素出栈
+        如果该元素已访问，则继续
+        访问该元素
+        标记该元素已访问
+        找一个邻居，如果找到且未访问，则加入栈
+    }
+    */
 }
 
 void GraphModel::generateBFSSteps(const QString &startVertex)
@@ -510,8 +532,9 @@ void GraphModel::generateBFSSteps(const QString &startVertex)
         for (const QString &neighbor : neighbors) {
             if (visited.find(neighbor) == visited.end()) {
                 visited.insert(neighbor);
+                // 只把新发现的邻居设为Current状态，current保持Visited状态
                 addAlgorithmStep(QString("发现未访问的邻居 %1，加入队列").arg(neighbor), 
-                                {current, neighbor}, {{current, neighbor}}, VisualState::Current);
+                                {neighbor}, {{current, neighbor}}, VisualState::Current);
                 queue.push(neighbor);
             }
         }
@@ -522,7 +545,10 @@ void GraphModel::generateBFSSteps(const QString &startVertex)
 
 void GraphModel::generateDijkstraSteps(const QString &startVertex)
 {
-    // 简化的Dijkstra算法步骤生成
+    if (m_vertices.find(startVertex) == m_vertices.end()) {
+        return;
+    }
+    
     addAlgorithmStep(QString("开始Dijkstra最短路径算法，从顶点 %1 开始").arg(startVertex), 
                     {startVertex}, {}, VisualState::Current);
     

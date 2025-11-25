@@ -404,6 +404,31 @@ void GraphAlgorithmController::setupGraphControlPanel()//ok
             this, &GraphAlgorithmController::onStartVertexChanged);
     connect(m_directedCheckBox, &QCheckBox::toggled,
             this, &GraphAlgorithmController::onDirectedCheckBoxToggled);//toggled 切换
+    
+    // 颜色状态说明组
+    QGroupBox *colorLegendGroup = new QGroupBox("颜色说明");
+    QHBoxLayout *colorLegendLayout = new QHBoxLayout(colorLegendGroup);
+    colorLegendLayout->setSpacing(10);
+    
+    // 创建颜色标签
+    auto createColorLabel = [](const QString &text, const QColor &color) -> QLabel* {
+        QLabel *label = new QLabel();
+        label->setText(QString("<span style='background-color: %1; color: black; padding: 2px 6px; border-radius: 3px;'>%2</span>")
+                      .arg(color.name())
+                      .arg(text));
+        return label;
+    };
+    
+    // 添加各个状态的颜色标签
+    colorLegendLayout->addWidget(createColorLabel("正常", QColor(0, 0, 255)));      // Normal - 蓝色
+    colorLegendLayout->addWidget(createColorLabel("已访问", QColor(100, 200, 100))); // Visited - 绿色
+    colorLegendLayout->addWidget(createColorLabel("当前", QColor(255, 165, 0)));     // Current - 橙色
+    colorLegendLayout->addWidget(createColorLabel("选中", QColor(255, 0, 0)));       // Selected - 红色
+    colorLegendLayout->addWidget(createColorLabel("处理中", QColor(255, 255, 0)));  // Processing - 黄色
+    
+    colorLegendLayout->addStretch();
+    
+    mainLayout->insertWidget(1, colorLegendGroup);
 }
 
 void GraphAlgorithmController::setupGraphOperationsPanel()//ok
