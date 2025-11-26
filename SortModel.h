@@ -34,6 +34,7 @@ struct SortStep {
     int delay;                             // 延迟时间(ms)
     bool isSwap;                           // 是否为交换操作
     std::vector<int> newPositions;         // 新位置（用于交换动画）
+    int pivotIndex = -1;                   // 基准元素索引（用于快速排序等高亮）
 };
 
 // 排序数据模型类
@@ -124,8 +125,8 @@ private:
     void generateBubbleSortSteps();
     void generateSelectionSortSteps();
     void generateInsertionSortSteps();
-    void generateQuickSortSteps(int low, int high);
-    void generateMergeSortSteps(int left, int right);
+    void generateQuickSortSteps(std::vector<int>& data, int low, int high);
+    void generateMergeSortSteps(std::vector<int>& data, int left, int right);
     void generateHeapSortSteps();
     void generateRadixSortSteps();
     
@@ -137,18 +138,20 @@ private:
                          VisualState state = VisualState::Current,
                          int delay = 1000,
                          bool isSwap = false,
-                         const std::vector<int> &newPositions = {});
+                         const std::vector<int> &newPositions = {},
+                         int pivotIndex = -1);
     
     // 算法辅助函数
-    int partition(int low, int high);
-    void merge(int left, int mid, int right);
-    void heapify(int n, int i);
-    void buildHeap();
+    int partition(std::vector<int>& data, int low, int high);
+    void merge(std::vector<int>& data, int left, int mid, int right);
+    void heapify(std::vector<int>& data, int n, int i);
+    void buildHeap(std::vector<int>& data);
     
     // 可视化辅助
     void updateBarItems();
     QPointF calculateBarPosition(int index) const;
     void animateSwap(int index1, int index2);
+    void animateMove(int srcIndex, int destIndex, int value);
     
     // 随机数生成
     std::random_device m_rd;

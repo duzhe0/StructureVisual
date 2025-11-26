@@ -638,7 +638,9 @@ BarItem::BarItem(int value, int index, QGraphicsItem *parent)
 
 QRectF BarItem::boundingRect() const
 {
-    return QRectF(-m_barWidth/2, -calculateBarHeight(), m_barWidth, calculateBarHeight());
+    qreal barHeight = calculateBarHeight();
+    // 预留顶部空间用于显示数值标签，避免被裁剪
+    return QRectF(-m_barWidth/2, -barHeight - 24, m_barWidth, barHeight + 24);
 }
 
 void BarItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)

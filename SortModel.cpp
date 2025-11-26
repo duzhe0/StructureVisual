@@ -97,13 +97,20 @@ void SortModel::executeAlgorithm(SortAlgorithm algorithm)
         return;
     }
     
+    // 1. 重置数据到原始状态，确保每次排序从头开始
+    resetData();
+    
+    // 2. 复制一份"草稿数据"用于算法生成步骤
+    // 这样可以避免在生成步骤时就修改了真实数据，导致动画执行时状态不一致
+    std::vector<int> tempData = m_data;
+    
     m_currentAlgorithm = algorithm;
     m_algorithmRunning = true;
     m_algorithmPaused = false;
     
     resetAlgorithmState();
     
-    // 生成算法步骤
+    // 生成算法步骤（操作 tempData）
     switch (algorithm) {
         case SortAlgorithm::BubbleSort:
             generateBubbleSortSteps();
@@ -115,10 +122,10 @@ void SortModel::executeAlgorithm(SortAlgorithm algorithm)
             generateInsertionSortSteps();
             break;
         case SortAlgorithm::QuickSort:
-            generateQuickSortSteps(0, static_cast<int>(m_data.size()) - 1);
+            generateQuickSortSteps(tempData, 0, static_cast<int>(tempData.size()) - 1);
             break;
         case SortAlgorithm::MergeSort:
-            generateMergeSortSteps(0, static_cast<int>(m_data.size()) - 1);
+            generateMergeSortSteps(tempData, 0, static_cast<int>(tempData.size()) - 1);
             break;
         case SortAlgorithm::HeapSort:
             generateHeapSortSteps();
@@ -224,6 +231,19 @@ void SortModel::processNextStep()
     SortStep step = m_algorithmSteps.front();
     m_algorithmSteps.pop();
     
+    // 重置所有非 Visited 的柱子状态为 Normal，避免颜色残留
+    // 但保留当前步骤的基准元素（如果有）的 Selected 状态
+    for (BarItem *bar : m_barItems) {
+        if (bar->getVisualState() != VisualState::Visited) {
+            // 如果这个柱子是当前步骤的基准元素，保留其 Selected 状态
+            int barIndex = bar->getIndex();
+            if (step.pivotIndex >= 0 && barIndex == step.pivotIndex) {
+                continue;  // 跳过，保持 Selected 状态
+            }
+            bar->setVisualState(VisualState::Normal);
+        }
+    }
+    
     // 应用可视化状态
     for (int index : step.indices) {
         if (index >= 0 && index < static_cast<int>(m_barItems.size())) {
@@ -238,12 +258,24 @@ void SortModel::processNextStep()
         }
     }
     
+    // 特殊处理：如果有基准元素，将其始终保持为 Selected (红色) 状态
+    if (step.pivotIndex >= 0 && step.pivotIndex < static_cast<int>(m_barItems.size())) {
+        m_barItems[step.pivotIndex]->setVisualState(VisualState::Selected);
+    }
+    
     // 处理交换操作
     if (step.isSwap && step.newPositions.size() >= 2) {
         int index1 = step.newPositions[0];
         int index2 = step.newPositions[1];
         animateSwap(index1, index2);
         emit swapPerformed(index1, index2);
+    } 
+    // 处理移动/覆盖操作 (isSwap=false 但有 newPositions 和 values)
+    else if (!step.isSwap && step.newPositions.size() >= 2 && !step.values.empty()) {
+        int srcIndex = step.newPositions[0];
+        int destIndex = step.newPositions[1];
+        int value = step.values[0];
+        animateMove(srcIndex, destIndex, value);
     }
     
     emit algorithmStepCompleted(step);
@@ -258,6 +290,7 @@ void SortModel::generateBubbleSortSteps()
 {
     addAlgorithmStep("开始冒泡排序", {}, {}, VisualState::Current);
     
+    // 使用副本进行模拟，不修改原始 m_data
     std::vector<int> data = m_data;
     int n = static_cast<int>(data.size());
     
@@ -273,8 +306,6 @@ void SortModel::generateBubbleSortSteps()
                                {j, j + 1}, {data[j], data[j + 1]}, VisualState::Selected, 1000, true, {j, j + 1});
                 
                 std::swap(data[j], data[j + 1]);
-                m_data[j] = data[j];
-                m_data[j + 1] = data[j + 1];
             }
         }
     }
@@ -310,8 +341,6 @@ void SortModel::generateSelectionSortSteps()
                            {i, minIndex}, {data[i], data[minIndex]}, VisualState::Selected, 1000, true, {i, minIndex});
             
             std::swap(data[i], data[minIndex]);
-            m_data[i] = data[i];
-            m_data[minIndex] = data[minIndex];
         }
     }
     
@@ -332,51 +361,50 @@ void SortModel::generateInsertionSortSteps()
         addAlgorithmStep(QString("处理元素 %1").arg(key), {i}, {key}, VisualState::Current);
         
         while (j >= 0 && data[j] > key) {
-            addAlgorithmStep(QString("移动元素 %1 到右侧").arg(data[j]), 
-                           {j, j + 1}, {data[j], data[j + 1]}, VisualState::Current);
+            // 此时 key 所在的元素已经在 j+1 的位置（因为它是一路交换过来的）
+            addAlgorithmStep(QString("比较元素 %1 和 %2").arg(data[j]).arg(key), 
+                           {j, j + 1}, {data[j], key}, VisualState::Current);
             
-            data[j + 1] = data[j];
-            m_data[j + 1] = data[j + 1];
+            // 移动操作：将data[j]向右移动一位（实际上是交换）
+            addAlgorithmStep(QString("移动元素 %1 到位置 %2").arg(data[j]).arg(j + 1), 
+                           {j, j + 1}, {data[j], data[j + 1]}, VisualState::Selected, 1000, true, {j, j + 1});
+                           
+            std::swap(data[j], data[j + 1]);
             j--;
         }
-        
-        data[j + 1] = key;
-        m_data[j + 1] = key;
-        
-        addAlgorithmStep(QString("插入元素 %1 到位置 %2").arg(key).arg(j + 1), 
-                       {j + 1}, {key}, VisualState::Selected);
+        // 此时 key 已经在 j+1 的位置了，无需再赋值或交换
     }
     
     addAlgorithmStep("插入排序完成", {}, {}, VisualState::Normal);
 }
 
-void SortModel::generateQuickSortSteps(int low, int high)
+void SortModel::generateQuickSortSteps(std::vector<int>& data, int low, int high)
 {
     if (low < high) {
         addAlgorithmStep(QString("快速排序子数组 [%1, %2]").arg(low).arg(high), 
-                       {low, high}, {m_data[low], m_data[high]}, VisualState::Current);
+                       {low, high}, {data[low], data[high]}, VisualState::Current);
         
-        int pivotIndex = partition(low, high);
+        int pivotIndex = partition(data, low, high);
         
-        addAlgorithmStep(QString("选择基准元素 %1，分区完成").arg(m_data[pivotIndex]), 
-                       {pivotIndex}, {m_data[pivotIndex]}, VisualState::Selected);
+        addAlgorithmStep(QString("基准元素 %1 已归位").arg(data[pivotIndex]), 
+                       {pivotIndex}, {data[pivotIndex]}, VisualState::Visited);
         
-        generateQuickSortSteps(low, pivotIndex - 1);
-        generateQuickSortSteps(pivotIndex + 1, high);
+        generateQuickSortSteps(data, low, pivotIndex - 1);
+        generateQuickSortSteps(data, pivotIndex + 1, high);
     }
 }
 
-void SortModel::generateMergeSortSteps(int left, int right)
+void SortModel::generateMergeSortSteps(std::vector<int>& data, int left, int right)
 {
     if (left < right) {
         int mid = left + (right - left) / 2;
         
         addAlgorithmStep(QString("归并排序子数组 [%1, %2]").arg(left).arg(right), 
-                       {left, right}, {m_data[left], m_data[right]}, VisualState::Current);
+                       {left, right}, {data[left], data[right]}, VisualState::Current);
         
-        generateMergeSortSteps(left, mid);
-        generateMergeSortSteps(mid + 1, right);
-        merge(left, mid, right);
+        generateMergeSortSteps(data, left, mid);
+        generateMergeSortSteps(data, mid + 1, right);
+        merge(data, left, mid, right);
     }
 }
 
@@ -384,23 +412,25 @@ void SortModel::generateHeapSortSteps()
 {
     addAlgorithmStep("开始堆排序", {}, {}, VisualState::Current);
     
-    int n = static_cast<int>(m_data.size());
+    // 使用副本进行模拟，不修改原始 m_data
+    std::vector<int> data = m_data;
+    int n = static_cast<int>(data.size());
     
     // 构建最大堆
     addAlgorithmStep("构建最大堆", {}, {}, VisualState::Current);
-    buildHeap();
+    buildHeap(data);
     
     // 逐个提取元素
     for (int i = n - 1; i > 0; --i) {
-        addAlgorithmStep(QString("交换根节点 %1 和最后一个元素 %2").arg(m_data[0]).arg(m_data[i]), 
-                       {0, i}, {m_data[0], m_data[i]}, VisualState::Selected, 1000, true, {0, i});
+        addAlgorithmStep(QString("交换根节点 %1 和最后一个元素 %2").arg(data[0]).arg(data[i]), 
+                       {0, i}, {data[0], data[i]}, VisualState::Selected, 1000, true, {0, i});
         
-        std::swap(m_data[0], m_data[i]);
+        std::swap(data[0], data[i]);
         
         addAlgorithmStep(QString("重新堆化，堆大小: %1").arg(i), 
-                       {0}, {m_data[0]}, VisualState::Current);
+                       {0}, {data[0]}, VisualState::Current);
         
-        heapify(i, 0);
+        heapify(data, i, 0);
     }
     
     addAlgorithmStep("堆排序完成", {}, {}, VisualState::Normal);
@@ -410,34 +440,46 @@ void SortModel::generateRadixSortSteps()
 {
     addAlgorithmStep("开始基数排序", {}, {}, VisualState::Current);
     
-    // 简化的基数排序实现
-    int maxElement = *std::max_element(m_data.begin(), m_data.end());
+    // 使用副本进行模拟，不修改原始 m_data
+    std::vector<int> data = m_data;
+    int maxElement = *std::max_element(data.begin(), data.end());
     
     for (int exp = 1; maxElement / exp > 0; exp *= 10) {
         addAlgorithmStep(QString("按第 %1 位排序").arg(exp), {}, {}, VisualState::Current);
         
-        // 这里可以实现完整的基数排序步骤
-        std::vector<int> output(m_data.size());
+        std::vector<int> output(data.size());
         std::vector<int> count(10, 0);
         
         // 计数阶段
-        for (int value : m_data) {
-            count[(value / exp) % 10]++;
+        addAlgorithmStep("计数阶段：统计每个数字的出现次数", {}, {}, VisualState::Normal);
+        for (int value : data) {
+            int digit = (value / exp) % 10;
+            count[digit]++;
         }
         
         // 累加计数
+        addAlgorithmStep("累加计数：计算每个数字的最终位置", {}, {}, VisualState::Normal);
         for (int i = 1; i < 10; ++i) {
             count[i] += count[i - 1];
         }
         
-        // 构建输出数组
-        for (int i = static_cast<int>(m_data.size()) - 1; i >= 0; --i) {
-            int digit = (m_data[i] / exp) % 10;
-            output[count[digit] - 1] = m_data[i];
+        // 构建输出数组（从后往前，保持稳定性）
+        addAlgorithmStep("重新排列：根据计数数组放置元素", {}, {}, VisualState::Current);
+        for (int i = static_cast<int>(data.size()) - 1; i >= 0; --i) {
+            int digit = (data[i] / exp) % 10;
+            int newPos = count[digit] - 1;
+            
+            if (i != newPos) {
+                // 注意：这里是移动/覆盖操作，所以 isSwap = false
+                addAlgorithmStep(QString("移动元素 %1 到位置 %2 (第%3位是%4)").arg(data[i]).arg(newPos).arg(exp).arg(digit),
+                                {i, newPos}, {data[i]}, VisualState::Selected, 1000, false, {i, newPos});
+            }
+            
+            output[newPos] = data[i];
             count[digit]--;
         }
         
-        m_data = output;
+        data = output;
     }
     
     addAlgorithmStep("基数排序完成", {}, {}, VisualState::Normal);
@@ -456,7 +498,8 @@ void SortModel::addAlgorithmStep(const QString &description,
                                VisualState state,
                                int delay,
                                bool isSwap,
-                               const std::vector<int> &newPositions)
+                               const std::vector<int> &newPositions,
+                               int pivotIndex)
 {
     SortStep step;
     step.description = description;
@@ -466,27 +509,46 @@ void SortModel::addAlgorithmStep(const QString &description,
     step.delay = delay;
     step.isSwap = isSwap;
     step.newPositions = newPositions;
+    step.pivotIndex = pivotIndex;
     
     m_algorithmSteps.push(step);
 }
 
-int SortModel::partition(int low, int high)
+int SortModel::partition(std::vector<int>& data, int low, int high)
 {
-    int pivot = m_data[high];
+    int pivot = data[high];
     int i = low - 1;
+    int currentPivotIndex = high;  // 跟踪基准元素的当前位置
+    
+    addAlgorithmStep(QString("选择基准元素: %1 (位置 %2)").arg(pivot).arg(high),
+                    {high}, {pivot}, VisualState::Selected, 1000, false, {}, high);
     
     for (int j = low; j < high; ++j) {
-        if (m_data[j] <= pivot) {
+        addAlgorithmStep(QString("比较元素 %1 和基准 %2").arg(data[j]).arg(pivot),
+                        {j, currentPivotIndex}, {data[j], pivot}, VisualState::Current, 1000, false, {}, currentPivotIndex);
+        
+        if (data[j] <= pivot) {
             i++;
-            std::swap(m_data[i], m_data[j]);
+            if (i != j) {
+                addAlgorithmStep(QString("交换元素 %1 和 %2").arg(data[i]).arg(data[j]),
+                                {i, j}, {data[i], data[j]}, VisualState::Selected, 1000, true, {i, j}, currentPivotIndex);
+                std::swap(data[i], data[j]);
+            }
         }
     }
     
-    std::swap(m_data[i + 1], m_data[high]);
+    // 基准元素归位
+    if (i + 1 != high) {
+        addAlgorithmStep(QString("将基准元素 %1 放到正确位置 %2").arg(pivot).arg(i + 1),
+                        {i + 1, currentPivotIndex}, {data[i + 1], pivot}, VisualState::Selected, 1000, true, {i + 1, currentPivotIndex}, i + 1);
+        std::swap(data[i + 1], data[high]);
+        currentPivotIndex = i + 1;  // 更新基准元素位置
+    }
+    
     return i + 1;
 }
 
-void SortModel::merge(int left, int mid, int right)
+void SortModel::merge(std::vector<int>& data, int left, int mid, int right)
 {
     int n1 = mid - left + 1;
     int n2 = right - mid;
@@ -495,63 +557,100 @@ void SortModel::merge(int left, int mid, int right)
     std::vector<int> rightArray(n2);
     
     for (int i = 0; i < n1; ++i) {
-        leftArray[i] = m_data[left + i];
+        leftArray[i] = data[left + i];
     }
     for (int j = 0; j < n2; ++j) {
-        rightArray[j] = m_data[mid + 1 + j];
+        rightArray[j] = data[mid + 1 + j];
     }
+    
+    addAlgorithmStep(QString("归并两个有序子数组 [%1,%2] 和 [%3,%4]").arg(left).arg(mid).arg(mid+1).arg(right),
+                    {left, mid, mid+1, right}, {}, VisualState::Current);
     
     int i = 0, j = 0, k = left;
     
     while (i < n1 && j < n2) {
+        addAlgorithmStep(QString("比较 %1 和 %2").arg(leftArray[i]).arg(rightArray[j]),
+                        {left + i, mid + 1 + j}, {leftArray[i], rightArray[j]}, VisualState::Current);
+        
         if (leftArray[i] <= rightArray[j]) {
-            m_data[k] = leftArray[i];
+            if (k != left + i) {
+                addAlgorithmStep(QString("移动元素 %1 到位置 %2").arg(leftArray[i]).arg(k),
+                                {left + i, k}, {leftArray[i]}, VisualState::Selected, 1000, false, {left + i, k});
+            }
+            data[k] = leftArray[i];
             i++;
         } else {
-            m_data[k] = rightArray[j];
+            if (k != mid + 1 + j) {
+                addAlgorithmStep(QString("移动元素 %1 到位置 %2").arg(rightArray[j]).arg(k),
+                                {mid + 1 + j, k}, {rightArray[j]}, VisualState::Selected, 1000, false, {mid + 1 + j, k});
+            }
+            data[k] = rightArray[j];
             j++;
         }
         k++;
     }
     
     while (i < n1) {
-        m_data[k] = leftArray[i];
+        if (k != left + i) {
+            addAlgorithmStep(QString("移动剩余元素 %1 到位置 %2").arg(leftArray[i]).arg(k),
+                            {left + i, k}, {leftArray[i]}, VisualState::Selected, 1000, false, {left + i, k});
+        }
+        data[k] = leftArray[i];
         i++;
         k++;
     }
     
     while (j < n2) {
-        m_data[k] = rightArray[j];
+        if (k != mid + 1 + j) {
+            addAlgorithmStep(QString("移动剩余元素 %1 到位置 %2").arg(rightArray[j]).arg(k),
+                            {mid + 1 + j, k}, {rightArray[j]}, VisualState::Selected, 1000, false, {mid + 1 + j, k});
+        }
+        data[k] = rightArray[j];
         j++;
         k++;
     }
+    
+    addAlgorithmStep(QString("归并完成，子数组 [%1,%2] 已有序").arg(left).arg(right),
+                    {}, {}, VisualState::Normal);
 }
 
-void SortModel::heapify(int n, int i)
+void SortModel::heapify(std::vector<int>& data, int n, int i)
 {
     int largest = i;
     int left = 2 * i + 1;
     int right = 2 * i + 2;
     
-    if (left < n && m_data[left] > m_data[largest]) {
-        largest = left;
+    if (left < n) {
+        addAlgorithmStep(QString("比较节点 %1 和左子节点 %2").arg(data[i]).arg(data[left]),
+                        {i, left}, {data[i], data[left]}, VisualState::Current);
+        if (data[left] > data[largest]) {
+            largest = left;
+        }
     }
     
-    if (right < n && m_data[right] > m_data[largest]) {
-        largest = right;
+    if (right < n) {
+        addAlgorithmStep(QString("比较节点 %1 和右子节点 %2").arg(data[largest]).arg(data[right]),
+                        {largest, right}, {data[largest], data[right]}, VisualState::Current);
+        if (data[right] > data[largest]) {
+            largest = right;
+        }
     }
     
     if (largest != i) {
-        std::swap(m_data[i], m_data[largest]);
-        heapify(n, largest);
+        addAlgorithmStep(QString("交换节点 %1 和 %2").arg(data[i]).arg(data[largest]),
+                        {i, largest}, {data[i], data[largest]}, VisualState::Selected, 1000, true, {i, largest});
+        std::swap(data[i], data[largest]);
+        heapify(data, n, largest);
     }
 }
 
-void SortModel::buildHeap()
+void SortModel::buildHeap(std::vector<int>& data)
 {
-    int n = static_cast<int>(m_data.size());
+    int n = static_cast<int>(data.size());
     for (int i = n / 2 - 1; i >= 0; --i) {
-        heapify(n, i);
+        addAlgorithmStep(QString("堆化节点 %1 (值: %2)").arg(i).arg(data[i]),
+                        {i}, {data[i]}, VisualState::Current);
+        heapify(data, n, i);
     }
 }
 
@@ -582,9 +681,48 @@ void SortModel::animateSwap(int index1, int index2)
         bar1->startSwapAnimation(pos2);
         bar2->startSwapAnimation(pos1);
         
-        // 更新数据
+        // 1. 交换数据 (逻辑层)
         std::swap(m_data[index1], m_data[index2]);
-        bar1->setValue(m_data[index1]);
-        bar2->setValue(m_data[index2]);
+        
+        // 2. 交换柱子对象 (视觉层 - 关键步骤！)
+        // 这样 m_barItems[index1] 指向的就是刚才从右边飞过来的那个柱子了
+        std::swap(m_barItems[index1], m_barItems[index2]);
+        
+        // 3. 更新柱子内部的索引记录
+        bar1->setIndex(index2);
+        bar2->setIndex(index1);
+        
+        // 注意：不需要 setValue！柱子带着它原来的数值飞过去就行了。
+    }
+}
+
+void SortModel::animateMove(int srcIndex, int destIndex, int value)
+{
+    if (destIndex >= 0 && destIndex < static_cast<int>(m_barItems.size())) {
+        BarItem *destBar = m_barItems[destIndex];
+        QPointF destPos = calculateBarPosition(destIndex);
+        
+        // 如果源位置和目标位置不同，播放移动动画
+        if (srcIndex >= 0 && srcIndex < static_cast<int>(m_barItems.size()) && srcIndex != destIndex) {
+            QPointF srcPos = calculateBarPosition(srcIndex);
+            
+            // 先高亮源位置（表示数据来自这里）
+            m_barItems[srcIndex]->startHighlightAnimation();
+            
+            // 更新数据
+            m_data[destIndex] = value;
+            destBar->setValue(value);
+            
+            // 让目标位置的柱子从源位置"飞"过来（视觉上的移动效果）
+            // 先临时移动到源位置
+            destBar->setPos(srcPos);
+            // 然后动画移动到目标位置
+            destBar->startSwapAnimation(destPos);
+        } else {
+            // 如果源位置和目标位置相同，只更新数值
+            m_data[destIndex] = value;
+            destBar->setValue(value);
+            destBar->startSelectAnimation();
+        }
     }
 }
