@@ -17,6 +17,7 @@
 #include <QGridLayout>
 #include <QGraphicsView>
 #include <QGraphicsScene>
+#include "MyVectorInt.h"
 
 // 前向声明
 class GraphModel;
@@ -165,11 +166,17 @@ private:
     QSpinBox *m_edgeWeightSpinBox;
     QPushButton *m_addEdgeButton;
     QPushButton *m_removeEdgeButton;
+    QPushButton *m_showMatrixButton;
+    QPushButton *m_showAdjacencyListButton;
     
     void setupControlPanel();
     void setupGraphControlPanel();
     void setupGraphOperationsPanel();
     void setupLayoutPanel();
+    
+private slots:
+    void onShowMatrixButtonClicked();
+    void onShowAdjacencyListButtonClicked();
 };
 
 // 排序算法控制器
@@ -198,7 +205,7 @@ public:
     
     // 数据管理
     void setRandomData(int size, int minValue = 1, int maxValue = 100);
-    void setCustomData(const std::vector<int> &data);
+    void setCustomData(const MyVectorInt &data);
     void clearData();
     
     // 算法选择

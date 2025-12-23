@@ -394,8 +394,6 @@ QPainterPath EdgeItem::shape() const
     // 为箭头和权重标签添加额外区域（如果有）
     if (m_isDirected || m_weight > 0) {
         qreal extraMargin = 15.0; // 箭头和标签的额外空间
-        QPointF arrowDir = direction * extraMargin;
-        QPointF perpExtra = perpendicular * extraMargin;
         
         // 在终点处扩展区域以包含箭头
         if (m_isDirected) {

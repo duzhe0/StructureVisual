@@ -16,24 +16,63 @@ SOURCES += \
     GraphModel.cpp \
     SortModel.cpp \
     AlgorithmController.cpp \
-    simplestring.cpp
+    MatrixRepresentationDialog.cpp \
+    AdjacencyListRepresentationDialog.cpp \
+    simplestring.cpp \
+    MyVectorQString.cpp \
+    MyVectorInt.cpp \
+    MyVectorVertexItemPtr.cpp \
+    MyVectorEdgeItemPtr.cpp \
+    MyMapQStringToInt.cpp \
+    MyMapQStringToQString.cpp \
+    MyMapQStringToQPointF.cpp \
+    MyMapQStringToVertexItemPtr.cpp \
+    MyMapPairToEdgeItemPtr.cpp \
+    MySetQString.cpp \
+    MySetPairQStringQString.cpp \
+    MyMapQStringToSetQString.cpp \
+    MyQueueQString.cpp \
+    MyQueueAlgorithmStep.cpp \
+    MyStackQString.cpp \
+    MyVectorPairQStringQString.cpp \
+    MyVectorBarItemPtr.cpp \
+    MyQueueSortStep.cpp \
+    MyVectorBool.cpp \
+    MyVectorEdgeInfo.cpp
 
 HEADERS += \
-    Graph.h \
-    HashMap.h \
-    IGraph.h \
-    Iterable.h \
-    Iterator.h \
-    ListGraph.h \
-    MatrixGraph.h \
-    dynamicarray.h \
     mainwindow.h \
     model.h \
     simplestring.h \
     VisualItem.h \
     GraphModel.h \
     SortModel.h \
-    AlgorithmController.h
+    AlgorithmController.h \
+    MatrixRepresentationDialog.h \
+    AdjacencyListRepresentationDialog.h \
+    MyVectorQString.h \
+    MyVectorInt.h \
+    MyVectorVertexItemPtr.h \
+    MyVectorEdgeItemPtr.h \
+    MyMapQStringToInt.h \
+    MyMapQStringToQString.h \
+    MyMapQStringToQPointF.h \
+    MyMapQStringToVertexItemPtr.h \
+    MyPairQStringQString.h \
+    MyMapPairToEdgeItemPtr.h \
+    MySetQString.h \
+    MySetPairQStringQString.h \
+    MyMapQStringToSetQString.h \
+    MyQueueQString.h \
+    MyQueueAlgorithmStep.h \
+    MyStackQString.h \
+    MyVectorPairQStringQString.h \
+    MyVectorBarItemPtr.h \
+    MyQueueSortStep.h \
+    MyVectorBool.h \
+    EdgeInfo.h \
+    MyVectorEdgeInfo.h \
+    VectorException.h
 
 FORMS += \
     mainwindow.ui

@@ -5,13 +5,22 @@
 #include <QPointF>
 #include <QColor>
 #include <QTimer>
+#include <QMap>
+#include <QList>
 #include <memory>
-#include <vector>
-#include <map>
-#include <set>
-#include <queue>
-#include <stack>
 #include "VisualItem.h"
+#include "MyVectorQString.h"
+#include "MyVectorVertexItemPtr.h"
+#include "MyVectorEdgeItemPtr.h"
+#include "MyMapQStringToVertexItemPtr.h"
+#include "MyMapPairToEdgeItemPtr.h"
+#include "MySetQString.h"
+#include "MySetPairQStringQString.h"
+#include "MyMapQStringToSetQString.h"
+#include "MyQueueQString.h"
+#include "MyQueueAlgorithmStep.h"
+#include "MyStackQString.h"
+#include "MyVectorPairQStringQString.h"
 
 // 前向声明
 class VertexItem;
@@ -31,8 +40,8 @@ enum class GraphAlgorithm {
 // 图算法步骤结构
 struct AlgorithmStep {
     QString description;           // 步骤描述
-    std::vector<QString> vertices;    // 涉及的顶点
-    std::vector<std::pair<QString, QString>> edges; // 涉及的边
+    MyVectorQString vertices;    // 涉及的顶点
+    MyVectorPairQStringQString edges; // 涉及的边
     VisualState state;            // 可视化状态
     int delay;                    // 延迟时间(ms)
 };
@@ -55,8 +64,8 @@ public:
     // 顶点和边的查询
     VertexItem* getVertex(const QString &label) const;
     EdgeItem* getEdge(const QString &from, const QString &to) const;
-    std::vector<VertexItem*> getAllVertices() const;
-    std::vector<EdgeItem*> getAllEdges() const;
+    MyVectorVertexItemPtr getAllVertices() const;
+    MyVectorEdgeItemPtr getAllEdges() const;
     
     // 图的基本属性
     int getVertexCount() const;
@@ -93,6 +102,12 @@ public:
     // 文件操作
     bool saveToFile(const QString &fileName) const;
     bool loadFromFile(const QString &fileName);
+    
+    // 矩阵和邻接表表示
+    QMap<QString, QMap<QString, int>> getMatrixRepresentation() const;
+    void updateFromMatrix(const QMap<QString, QMap<QString, int>> &matrix);
+    QMap<QString, QList<QPair<QString, int>>> getAdjacencyListRepresentation() const;
+    void updateFromAdjacencyList(const QMap<QString, QList<QPair<QString, int>>> &adjList);
 
 signals:
     void algorithmStarted(GraphAlgorithm algorithm);
@@ -111,9 +126,9 @@ private slots:
 
 private:
     // 图数据结构
-    std::map<QString, VertexItem*> m_vertices;
-    std::map<std::pair<QString, QString>, EdgeItem*> m_edges;
-    std::map<QString, std::set<QString>> m_adjacencyList;
+    MyMapQStringToVertexItemPtr m_vertices;
+    MyMapPairToEdgeItemPtr m_edges;
+    MyMapQStringToSetQString m_adjacencyList;
     
     // 场景和可视化
     QGraphicsScene *m_scene;
@@ -123,15 +138,15 @@ private:
     GraphAlgorithm m_currentAlgorithm;
     bool m_algorithmRunning;
     bool m_algorithmPaused;
-    std::queue<AlgorithmStep> m_algorithmSteps;
+    MyQueueAlgorithmStep m_algorithmSteps;
     QTimer *m_algorithmTimer;
     QString m_startVertex;
     
     // 算法状态跟踪
-    std::set<QString> m_visitedVertices;
-    std::set<std::pair<QString, QString>> m_visitedEdges;
-    std::queue<QString> m_bfsQueue;
-    std::stack<QString> m_dfsStack;
+    MySetQString m_visitedVertices;
+    MySetPairQStringQString m_visitedEdges;
+    MyQueueQString m_bfsQueue;
+    MyStackQString m_dfsStack;
     
     // 算法实现
     void generateDFSSteps(const QString &startVertex);
@@ -144,8 +159,8 @@ private:
     // 辅助方法
     void resetAlgorithmState();
     void addAlgorithmStep(const QString &description, 
-                         const std::vector<QString> &vertices = {},
-                         const std::vector<std::pair<QString, QString>> &edges = {},
+                         const MyVectorQString &vertices = MyVectorQString(),
+                         const MyVectorPairQStringQString &edges = MyVectorPairQStringQString(),
                          VisualState state = VisualState::Current,
                          int delay = 1000);
     
@@ -154,9 +169,9 @@ private:
     void applyForceDirectedStep();
     
     // 图算法辅助
-    std::vector<QString> getNeighbors(const QString &vertex) const;
+    MyVectorQString getNeighbors(const QString &vertex) const;
     bool hasPath(const QString &from, const QString &to) const;
-    std::vector<std::pair<QString, QString>> getAllEdgesSorted() const;
+    MyVectorPairQStringQString getAllEdgesSorted() const;
 };
 
 #endif // GRAPHMODEL_H

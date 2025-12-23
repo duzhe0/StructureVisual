@@ -1,10 +1,22 @@
 #include "GraphModel.h"
 #include "VisualItem.h"
+#include "MyMapQStringToInt.h"
+#include "MyMapQStringToQString.h"
+#include "MyMapQStringToQPointF.h"
+#include "MyMapQStringToVertexItemPtr.h"
+#include "MyMapPairToEdgeItemPtr.h"
+#include "MyPairQStringQString.h"
+#include "MySetQString.h"
+#include "MySetPairQStringQString.h"
+#include "MyMapQStringToSetQString.h"
+#include "MyQueueQString.h"
+#include "MyStackQString.h"
+#include "MyVectorPairQStringQString.h"
+#include "MyVectorEdgeInfo.h"
 #include <QGraphicsScene>
 #include <QTimer>
 #include <QDebug>
 #include <QtMath>
-#include <algorithm>
 #include <random>
 #include <QFile>
 #include <QTextStream>
@@ -13,9 +25,7 @@
 #include <QJsonArray>
 #include <QJsonParseError>
 #include <QStringConverter>
-#include <set>
 #include <climits>
-#include <map>
 
 GraphModel::GraphModel(QObject *parent)
     : QObject(parent)
@@ -37,14 +47,14 @@ GraphModel::~GraphModel()
 
 bool GraphModel::addVertex(const QString &label, const QPointF &position)
 {
-    if (m_vertices.find(label) != m_vertices.end()) {
+    if (m_vertices.find(label) != nullptr) {
         qDebug() << "Vertex" << label << "already exists";
         return false;
     }
     
     VertexItem *vertex = new VertexItem(label, position);
     m_vertices[label] = vertex;
-    m_adjacencyList[label] = std::set<QString>();
+    m_adjacencyList[label] = MySetQString();
     
     if (m_scene) {
         m_scene->addItem(vertex);
@@ -57,30 +67,31 @@ bool GraphModel::addVertex(const QString &label, const QPointF &position)
 
 bool GraphModel::removeVertex(const QString &label)
 {
-    auto it = m_vertices.find(label);
-    if (it == m_vertices.end()) {
+    VertexItem** ptr = m_vertices.find(label);
+    if (ptr == nullptr) {
         qDebug() << "Vertex" << label << "does not exist";
         return false;
     }
     
-    VertexItem *vertex = it->second;
+    VertexItem *vertex = *ptr;
     
     // 删除所有相关的边
-    std::vector<std::pair<QString, QString>> edgesToRemove;
-    for (const auto &edgePair : m_edges) {
-        const QString &from = edgePair.first.first;
-        const QString &to = edgePair.first.second;
+    MyVectorPairQStringQString edgesToRemove;
+    for (size_t i = 0; i < m_edges.size(); ++i) {
+        const QString &from = m_edges.keyAt(i).first;
+        const QString &to = m_edges.keyAt(i).second;
         if (from == label || to == label) {
-            edgesToRemove.push_back({from, to});
+            edgesToRemove.push_back(MyPairQStringQString(from, to));
         }
     }
     
-    for (const auto &edgePair : edgesToRemove) {
+    for (size_t i = 0; i < edgesToRemove.size(); ++i) {
+        const MyPairQStringQString &edgePair = edgesToRemove.at(i);
         removeEdge(edgePair.first, edgePair.second);
     }
     
     // 删除顶点
-    m_vertices.erase(it);
+    m_vertices.erase(label);
     m_adjacencyList.erase(label);
     
     if (m_scene) {
@@ -95,14 +106,14 @@ bool GraphModel::removeVertex(const QString &label)
 
 bool GraphModel::addEdge(const QString &from, const QString &to, int weight)
 {
-    if (m_vertices.find(from) == m_vertices.end() || 
-        m_vertices.find(to) == m_vertices.end()) {
+    if (m_vertices.find(from) == nullptr || 
+        m_vertices.find(to) == nullptr) {
         qDebug() << "One or both vertices do not exist";
         return false;
     }
     
-    auto edgeKey = std::make_pair(from, to);
-    if (m_edges.find(edgeKey) != m_edges.end()) {
+    MyPairQStringQString edgeKey(from, to);
+    if (m_edges.find(edgeKey) != nullptr) {
         qDebug() << "Edge already exists";
         return false;
     }
@@ -116,7 +127,7 @@ bool GraphModel::addEdge(const QString &from, const QString &to, int weight)
     
     if (!m_isDirected) {
         m_adjacencyList[to].insert(from);
-        auto reverseKey = std::make_pair(to, from);
+        MyPairQStringQString reverseKey(to, from);
         m_edges[reverseKey] = edge; // 无向图共享边对象
     }
     
@@ -130,19 +141,19 @@ bool GraphModel::addEdge(const QString &from, const QString &to, int weight)
 
 bool GraphModel::removeEdge(const QString &from, const QString &to)
 {
-    auto edgeKey = std::make_pair(from, to);
-    auto it = m_edges.find(edgeKey);
-    if (it == m_edges.end()) {
+    MyPairQStringQString edgeKey(from, to);
+    EdgeItem** ptr = m_edges.find(edgeKey);
+    if (ptr == nullptr) {
         qDebug() << "Edge does not exist";
         return false;
     }
     
-    EdgeItem *edge = it->second;
-    m_edges.erase(it);
+    EdgeItem *edge = *ptr;
+    m_edges.erase(edgeKey);
     m_adjacencyList[from].erase(to);
     
     if (!m_isDirected) {
-        auto reverseKey = std::make_pair(to, from);
+        MyPairQStringQString reverseKey(to, from);
         m_edges.erase(reverseKey);
         m_adjacencyList[to].erase(from);
     }
@@ -158,31 +169,31 @@ bool GraphModel::removeEdge(const QString &from, const QString &to)
 
 VertexItem* GraphModel::getVertex(const QString &label) const
 {
-    auto it = m_vertices.find(label);
-    return (it != m_vertices.end()) ? it->second : nullptr;
+    VertexItem* const* ptr = m_vertices.find(label);
+    return (ptr != nullptr) ? *ptr : nullptr;
 }
 
 EdgeItem* GraphModel::getEdge(const QString &from, const QString &to) const
 {
-    auto edgeKey = std::make_pair(from, to);
-    auto it = m_edges.find(edgeKey);
-    return (it != m_edges.end()) ? it->second : nullptr;
+    MyPairQStringQString edgeKey(from, to);
+    EdgeItem* const* ptr = m_edges.find(edgeKey);
+    return (ptr != nullptr) ? *ptr : nullptr;
 }
 
-std::vector<VertexItem*> GraphModel::getAllVertices() const
+MyVectorVertexItemPtr GraphModel::getAllVertices() const
 {
-    std::vector<VertexItem*> vertices;
-    for (const auto &pair : m_vertices) {
-        vertices.push_back(pair.second);
+    MyVectorVertexItemPtr vertices;
+    for (size_t i = 0; i < m_vertices.size(); ++i) {
+        vertices.push_back(m_vertices.valueAt(i));
     }
     return vertices;
 }
 
-std::vector<EdgeItem*> GraphModel::getAllEdges() const
+MyVectorEdgeItemPtr GraphModel::getAllEdges() const
 {
-    std::vector<EdgeItem*> edges;
-    for (const auto &pair : m_edges) {
-        edges.push_back(pair.second);
+    MyVectorEdgeItemPtr edges;
+    for (size_t i = 0; i < m_edges.size(); ++i) {
+        edges.push_back(m_edges.valueAt(i));
     }
     return edges;
 }
@@ -295,11 +306,11 @@ void GraphModel::setScene(QGraphicsScene *scene)
     m_scene = scene;
     
     // 将现有项目添加到场景
-    for (auto &pair : m_vertices) {
-        scene->addItem(pair.second);
+    for (size_t i = 0; i < m_vertices.size(); ++i) {
+        scene->addItem(m_vertices.valueAt(i));
     }
-    for (auto &pair : m_edges) {
-        scene->addItem(pair.second);
+    for (size_t i = 0; i < m_edges.size(); ++i) {
+        scene->addItem(m_edges.valueAt(i));
     }
 }
 
@@ -311,15 +322,15 @@ void GraphModel::applyCircularLayout()
     int total = static_cast<int>(m_vertices.size());
     qreal radius = qMin(200.0, total * 20.0);
     
-    for (auto &pair : m_vertices) {
+    for (size_t i = 0; i < m_vertices.size(); ++i) {
         QPointF position = calculateCircularPosition(index, total, radius);
-        pair.second->setPosition(position);
+        m_vertices.valueAt(i)->setPosition(position);
         index++;
     }
     
     // 更新边的位置
-    for (auto &pair : m_edges) {
-        pair.second->updatePosition();
+    for (size_t i = 0; i < m_edges.size(); ++i) {
+        m_edges.valueAt(i)->updatePosition();
     }
 }
 
@@ -327,8 +338,6 @@ void GraphModel::applyForceDirectedLayout()
 {
     // 简化的力导向布局算法
     const int iterations = 100;
-    const qreal k = 50.0; // 理想距离
-    const qreal c = 0.1;  // 冷却因子
     
     for (int iter = 0; iter < iterations; ++iter) {
         applyForceDirectedStep();
@@ -346,9 +355,9 @@ void GraphModel::applyGridLayout(int columns)
     int row = 0, col = 0;
     const qreal spacing = 100.0;
     
-    for (auto &pair : m_vertices) {
+    for (size_t i = 0; i < m_vertices.size(); ++i) {
         QPointF position(col * spacing, row * spacing);
-        pair.second->setPosition(position);
+        m_vertices.valueAt(i)->setPosition(position);
         
         col++;
         if (col >= columns) {
@@ -358,23 +367,23 @@ void GraphModel::applyGridLayout(int columns)
     }
     
     // 更新边的位置
-    for (auto &pair : m_edges) {
-        pair.second->updatePosition();
+    for (size_t i = 0; i < m_edges.size(); ++i) {
+        m_edges.valueAt(i)->updatePosition();
     }
 }
 
 void GraphModel::resetVisualization()
 {
     // 重置所有顶点的可视化状态
-    for (auto &pair : m_vertices) {
-        pair.second->setVisualState(VisualState::Normal);
-        pair.second->stopAnimations();
+    for (size_t i = 0; i < m_vertices.size(); ++i) {
+        m_vertices.valueAt(i)->setVisualState(VisualState::Normal);
+        m_vertices.valueAt(i)->stopAnimations();
     }
     
     // 重置所有边的可视化状态
-    for (auto &pair : m_edges) {
-        pair.second->setVisualState(VisualState::Normal);
-        pair.second->stopAnimations();
+    for (size_t i = 0; i < m_edges.size(); ++i) {
+        m_edges.valueAt(i)->setVisualState(VisualState::Normal);
+        m_edges.valueAt(i)->stopAnimations();
     }
 }
 
@@ -388,20 +397,20 @@ void GraphModel::clearGraph()
     }
     
     // 删除所有边
-    for (auto &pair : m_edges) {
+    for (size_t i = 0; i < m_edges.size(); ++i) {
         if (m_scene) {
-            m_scene->removeItem(pair.second);
+            m_scene->removeItem(m_edges.valueAt(i));
         }
-        delete pair.second;
+        delete m_edges.valueAt(i);
     }
     m_edges.clear();
     
     // 删除所有顶点
-    for (auto &pair : m_vertices) {
+    for (size_t i = 0; i < m_vertices.size(); ++i) {
         if (m_scene) {
-            m_scene->removeItem(pair.second);
+            m_scene->removeItem(m_vertices.valueAt(i));
         }
-        delete pair.second;
+        delete m_vertices.valueAt(i);
     }
     m_vertices.clear();
     m_adjacencyList.clear();
@@ -419,7 +428,8 @@ void GraphModel::processNextStep()
     m_algorithmSteps.pop();
     
     // 应用可视化状态
-    for (const QString &vertexLabel : step.vertices) {
+    for (size_t i = 0; i < step.vertices.size(); ++i) {
+        const QString &vertexLabel = step.vertices.at(i);
         VertexItem *vertex = getVertex(vertexLabel);
         if (vertex) {
             vertex->setVisualState(step.state);
@@ -429,7 +439,8 @@ void GraphModel::processNextStep()
         }
     }
     
-    for (const auto &edgePair : step.edges) {
+    for (size_t i = 0; i < step.edges.size(); ++i) {
+        const MyPairQStringQString &edgePair = step.edges.at(i);
         EdgeItem *edge = getEdge(edgePair.first, edgePair.second);
         if (edge) {
             edge->setVisualState(step.state);
@@ -449,14 +460,16 @@ void GraphModel::processNextStep()
 
 void GraphModel::generateDFSSteps(const QString &startVertex)
 {
-    if (m_vertices.find(startVertex) == m_vertices.end()) {
+    if (m_vertices.find(startVertex) == nullptr) {
         return;
     }
+    MyVectorQString startVertices1;
+    startVertices1.push_back(startVertex);
     addAlgorithmStep(QString("开始深度优先搜索，从顶点 %1 开始").arg(startVertex), 
-                    {startVertex}, {}, VisualState::Current);
-    std::stack<QString> stack;
-    std::set<QString> visited;
-    std::set<QString> inStack;  // 记录已在栈中的顶点，避免重复入栈
+                    startVertices1, MyVectorPairQStringQString(), VisualState::Current);
+    MyStackQString stack;
+    MySetQString visited;
+    MySetQString inStack;  // 记录已在栈中的顶点，避免重复入栈
     
     stack.push(startVertex);
     inStack.insert(startVertex);
@@ -467,30 +480,37 @@ void GraphModel::generateDFSSteps(const QString &startVertex)
         inStack.erase(current);  // 从栈中移除时，清除标记
         
         // 如果该元素已访问，则跳过
-        if(visited.find(current) != visited.end()){
+        if(visited.find(current)){
             continue;
         }
         
         // 访问该元素
+        MyVectorQString currentVec1;
+        currentVec1.push_back(current);
         addAlgorithmStep(QString("访问顶点 %1").arg(current), 
-                        {current}, {}, VisualState::Visited);
+                        currentVec1, MyVectorPairQStringQString(), VisualState::Visited);
         visited.insert(current);
         
         // 获取所有邻居
-        std::vector<QString> neighbors = getNeighbors(current);
-        for (const QString &neighbor : neighbors){
+        MyVectorQString neighbors = getNeighbors(current);
+        for (size_t i = 0; i < neighbors.size(); ++i) {
+            const QString &neighbor = neighbors.at(i);
             // 如果邻居未访问且不在栈中，则加入栈
-            if(visited.find(neighbor) == visited.end() && 
-               inStack.find(neighbor) == inStack.end()){
+            if(!visited.find(neighbor) &&
+               !inStack.find(neighbor)){
                 stack.push(neighbor);
                 inStack.insert(neighbor);  // 标记已入栈
                 // 只把新发现的邻居设为Current状态，current保持Visited状态
+                MyVectorQString neighborVec1;
+                neighborVec1.push_back(neighbor);
+                MyVectorPairQStringQString edgeVec1;
+                edgeVec1.push_back(MyPairQStringQString(current, neighbor));
                 addAlgorithmStep(QString("发现未访问的邻居 %1，加入栈中").arg(neighbor), 
-                                {neighbor}, {{current, neighbor}}, VisualState::Current);
+                                neighborVec1, edgeVec1, VisualState::Current);
             }
         }
     }
-    addAlgorithmStep("深度优先搜索完成", {}, {}, VisualState::Normal);
+    addAlgorithmStep("深度优先搜索完成", MyVectorQString(), MyVectorPairQStringQString(), VisualState::Normal);
     
     /*
     如果起始点不存在退出
@@ -509,15 +529,17 @@ void GraphModel::generateDFSSteps(const QString &startVertex)
 
 void GraphModel::generateBFSSteps(const QString &startVertex)
 {
-    if (m_vertices.find(startVertex) == m_vertices.end()) {
+    if (m_vertices.find(startVertex) == nullptr) {
         return;
     }
     
+    MyVectorQString startVertices2;
+    startVertices2.push_back(startVertex);
     addAlgorithmStep(QString("开始广度优先搜索，从顶点 %1 开始").arg(startVertex), 
-                    {startVertex}, {}, VisualState::Current);
+                    startVertices2, MyVectorPairQStringQString(), VisualState::Current);
     
-    std::queue<QString> queue;
-    std::set<QString> visited;
+    MyQueueQString queue;
+    MySetQString visited;
     
     queue.push(startVertex);
     visited.insert(startVertex);
@@ -526,44 +548,53 @@ void GraphModel::generateBFSSteps(const QString &startVertex)
         QString current = queue.front();
         queue.pop();
         
+        MyVectorQString currentVec2;
+        currentVec2.push_back(current);
         addAlgorithmStep(QString("处理顶点 %1").arg(current), 
-                        {current}, {}, VisualState::Visited);
+                        currentVec2, MyVectorPairQStringQString(), VisualState::Visited);
         
-        std::vector<QString> neighbors = getNeighbors(current);
-        for (const QString &neighbor : neighbors) {
-            if (visited.find(neighbor) == visited.end()) {
+        MyVectorQString neighbors = getNeighbors(current);
+        for (size_t i = 0; i < neighbors.size(); ++i) {
+            const QString &neighbor = neighbors.at(i);
+            if (!visited.find(neighbor)) {
                 visited.insert(neighbor);
                 // 只把新发现的邻居设为Current状态，current保持Visited状态
+                MyVectorQString neighborVec2;
+                neighborVec2.push_back(neighbor);
+                MyVectorPairQStringQString edgeVec2;
+                edgeVec2.push_back(MyPairQStringQString(current, neighbor));
                 addAlgorithmStep(QString("发现未访问的邻居 %1，加入队列").arg(neighbor), 
-                                {neighbor}, {{current, neighbor}}, VisualState::Current);
+                                neighborVec2, edgeVec2, VisualState::Current);
                 queue.push(neighbor);
             }
         }
     }
     
-    addAlgorithmStep("广度优先搜索完成", {}, {}, VisualState::Normal);
+    addAlgorithmStep("广度优先搜索完成", MyVectorQString(), MyVectorPairQStringQString(), VisualState::Normal);
 }
 
 void GraphModel::generateDijkstraSteps(const QString &startVertex)
 {
-    if (m_vertices.find(startVertex) == m_vertices.end()) {
+    if (m_vertices.find(startVertex) == nullptr) {
         return;
     }
     
+    MyVectorQString startVertices3;
+    startVertices3.push_back(startVertex);
     addAlgorithmStep(QString("开始Dijkstra最短路径算法，从顶点 %1 开始").arg(startVertex), 
-                    {startVertex}, {}, VisualState::Visited);
+                    startVertices3, MyVectorPairQStringQString(), VisualState::Visited);
     
     // 距离映射：顶点 -> 最短距离
-    std::map<QString, int> distances;
+    MyMapQStringToInt distances;
     // 前驱映射：顶点 -> 前驱顶点
-    std::map<QString, QString> predecessors;
+    MyMapQStringToQString predecessors;
     // 未访问顶点集合
-    std::set<QString> unvisited;
+    MySetQString unvisited;
     
     // 初始化：所有顶点距离为无穷大，起始顶点距离为0
-    for (const auto &pair : m_vertices) {
-        distances[pair.first] = INT_MAX;
-        unvisited.insert(pair.first);
+    for (size_t i = 0; i < m_vertices.size(); ++i) {
+        distances[m_vertices.keyAt(i)] = INT_MAX;
+        unvisited.insert(m_vertices.keyAt(i));
     }
     distances[startVertex] = 0;
     
@@ -571,7 +602,8 @@ void GraphModel::generateDijkstraSteps(const QString &startVertex)
         // 找到未访问顶点中距离最小的
         QString current;
         int minDist = INT_MAX;
-        for (const QString &v : unvisited) {
+        for (size_t i = 0; i < unvisited.size(); ++i) {
+            const QString &v = unvisited.at(i);
             if (distances[v] < minDist) {
                 minDist = distances[v];
                 current = v;
@@ -586,14 +618,17 @@ void GraphModel::generateDijkstraSteps(const QString &startVertex)
         unvisited.erase(current);
         
         if (current != startVertex) {
+            MyVectorQString currentVec3;
+            currentVec3.push_back(current);
             addAlgorithmStep(QString("选择距离最小的未访问顶点 %1 (距离: %2)").arg(current).arg(minDist),
-                            {current}, {}, VisualState::Visited);
+                            currentVec3, MyVectorPairQStringQString(), VisualState::Visited);
         }
         
         // 更新邻居的距离
-        std::vector<QString> neighbors = getNeighbors(current);
-        for (const QString &neighbor : neighbors) {
-            if (unvisited.find(neighbor) == unvisited.end()) {
+        MyVectorQString neighbors = getNeighbors(current);
+        for (size_t i = 0; i < neighbors.size(); ++i) {
+            const QString &neighbor = neighbors.at(i);
+            if (!unvisited.find(neighbor)) {
                 continue;  // 已访问，跳过
             }
             
@@ -608,50 +643,59 @@ void GraphModel::generateDijkstraSteps(const QString &startVertex)
                 int newDist = distances[current] + weight;
                 
                 if (newDist < distances[neighbor]) {
-                    QString prevPred = predecessors.find(neighbor) != predecessors.end() ? predecessors[neighbor] : "无";
+                    QString prevPred = predecessors.find(neighbor) != nullptr ? *predecessors.find(neighbor) : "无";
                     predecessors[neighbor] = current;  // 更新前驱顶点
                     addAlgorithmStep(QString("发现更短路径到 %1：%2 -> %3 (新距离: %4，前驱: %2)").arg(neighbor)
                                     .arg(current).arg(neighbor).arg(newDist),
-                                    {neighbor}, {{current, neighbor}}, VisualState::Current);
+                                    MyVectorQString(), MyVectorPairQStringQString(), VisualState::Current);
                     distances[neighbor] = newDist;
                 } else {
                     addAlgorithmStep(QString("检查到 %1 的路径：%2 -> %3 (距离: %4，不更新)").arg(neighbor)
                                     .arg(current).arg(neighbor).arg(distances[neighbor]),
-                                    {neighbor}, {{current, neighbor}}, VisualState::Normal);
+                                    MyVectorQString(), MyVectorPairQStringQString(), VisualState::Normal);
                 }
             }
         }
         
         if (current != startVertex) {
+            MyVectorQString currentVec4;
+            currentVec4.push_back(current);
             addAlgorithmStep(QString("顶点 %1 已处理完成，距离: %2").arg(current).arg(distances[current]),
-                            {current}, {}, VisualState::Visited);
+                            currentVec4, MyVectorPairQStringQString(), VisualState::Visited);
         }
     }
     
     // 显示最短路径结果
-    addAlgorithmStep("Dijkstra算法完成，开始显示最短路径结果", {}, {}, VisualState::Normal);
+    addAlgorithmStep("Dijkstra算法完成，开始显示最短路径结果", MyVectorQString(), MyVectorPairQStringQString(), VisualState::Normal);
     
     // 为每个可达顶点显示最短路径
-    for (const auto &pair : m_vertices) {
-        const QString &target = pair.first;
+    for (size_t i = 0; i < m_vertices.size(); ++i) {
+        const QString &target = m_vertices.keyAt(i);
         if (target == startVertex) {
             continue;  // 跳过起始顶点
         }
         
         if (distances[target] == INT_MAX) {
-            addAlgorithmStep(QString("顶点 %1 不可达").arg(target), {target}, {}, VisualState::Normal);
+            MyVectorQString targetVec;
+            targetVec.push_back(target);
+            addAlgorithmStep(QString("顶点 %1 不可达").arg(target), targetVec, MyVectorPairQStringQString(), VisualState::Normal);
             continue;
         }
         
         // 回溯路径
-        std::vector<QString> path;
+        MyVectorQString path;
         QString current = target;
-        while (current != startVertex && predecessors.find(current) != predecessors.end()) {
+        while (current != startVertex && predecessors.find(current) != nullptr) {
             path.push_back(current);
             current = predecessors[current];
         }
         path.push_back(startVertex);
-        std::reverse(path.begin(), path.end());
+        // 手动反转路径（因为 MyVectorQString 没有 reverse 方法）
+        for (size_t i = 0; i < path.size() / 2; ++i) {
+            QString temp = path[i];
+            path[i] = path[path.size() - 1 - i];
+            path[path.size() - 1 - i] = temp;
+        }
         
         // 构建路径字符串
         QString pathStr;
@@ -661,16 +705,16 @@ void GraphModel::generateDijkstraSteps(const QString &startVertex)
         }
         
         // 构建边列表用于高亮显示
-        std::vector<std::pair<QString, QString>> pathEdges;
+        MyVectorPairQStringQString pathEdges;
         for (size_t i = 0; i < path.size() - 1; i++) {
-            pathEdges.push_back(std::make_pair(path[i], path[i + 1]));
+            pathEdges.push_back(MyPairQStringQString(path[i], path[i + 1]));
         }
         
         addAlgorithmStep(QString("到顶点 %1 的最短路径：%2 (距离: %3)").arg(target).arg(pathStr).arg(distances[target]),
                         path, pathEdges, VisualState::Selected);
     }
     
-    addAlgorithmStep("所有最短路径显示完成", {}, {}, VisualState::Normal);
+    addAlgorithmStep("所有最短路径显示完成", MyVectorQString(), MyVectorPairQStringQString(), VisualState::Normal);
 }
 
 void GraphModel::generatePrimSteps(const QString &startVertex)
@@ -681,37 +725,47 @@ void GraphModel::generatePrimSteps(const QString &startVertex)
     
     // 确定起始顶点：如果指定了且存在则使用，否则使用第一个顶点
     QString actualStartVertex = startVertex;
-    if (actualStartVertex.isEmpty() || m_vertices.find(actualStartVertex) == m_vertices.end()) {
-        actualStartVertex = m_vertices.begin()->first;
+    if (actualStartVertex.isEmpty() || m_vertices.find(actualStartVertex) == nullptr) {
+        if (m_vertices.size() > 0) {
+            actualStartVertex = m_vertices.keyAt(0);
+        }
         if (!startVertex.isEmpty()) {
+            MyVectorQString actualStartVec1;
+            actualStartVec1.push_back(actualStartVertex);
             addAlgorithmStep(QString("指定的起始顶点 %1 不存在，使用顶点 %2 作为起始点").arg(startVertex).arg(actualStartVertex),
-                            {actualStartVertex}, {}, VisualState::Current);
+                            actualStartVec1, MyVectorPairQStringQString(), VisualState::Current);
         }
     }
     
+    MyVectorQString actualStartVec2;
+    actualStartVec2.push_back(actualStartVertex);
     addAlgorithmStep(QString("开始Prim最小生成树算法，起始顶点: %1").arg(actualStartVertex), 
-                    {actualStartVertex}, {}, VisualState::Current);
+                    actualStartVec2, MyVectorPairQStringQString(), VisualState::Current);
     
     // 已加入最小生成树的顶点集合
-    std::set<QString> mstVertices;
+    MySetQString mstVertices;
     // 已加入最小生成树的边集合
-    std::set<std::pair<QString, QString>> mstEdges;
+    MySetPairQStringQString mstEdges;
     
     // 使用指定的起始顶点
     mstVertices.insert(actualStartVertex);
     
+    MyVectorQString startVec4;
+    startVec4.push_back(startVertex);
     addAlgorithmStep(QString("选择起始顶点 %1 加入最小生成树").arg(startVertex),
-                    {startVertex}, {}, VisualState::Current);
+                    startVec4, MyVectorPairQStringQString(), VisualState::Current);
     
     while (mstVertices.size() < m_vertices.size()) {
         // 找到连接已访问顶点和未访问顶点的最小权重边
         QString minFrom, minTo;
         int minWeight = INT_MAX;
         
-        for (const QString &v : mstVertices) {
-            std::vector<QString> neighbors = getNeighbors(v);
-            for (const QString &neighbor : neighbors) {
-                if (mstVertices.find(neighbor) != mstVertices.end()) {
+        for (size_t j = 0; j < mstVertices.size(); ++j) {
+            const QString &v = mstVertices.at(j);
+            MyVectorQString neighbors = getNeighbors(v);
+            for (size_t i = 0; i < neighbors.size(); ++i) {
+                const QString &neighbor = neighbors.at(i);
+                if (mstVertices.find(neighbor)) {
                     continue;  // 邻居已在MST中，跳过
                 }
                 
@@ -733,23 +787,30 @@ void GraphModel::generatePrimSteps(const QString &startVertex)
         
         if (minWeight == INT_MAX) {
             // 图不连通，无法继续
-            addAlgorithmStep("图不连通，无法生成完整的最小生成树", {}, {}, VisualState::Normal);
+            addAlgorithmStep("图不连通，无法生成完整的最小生成树", MyVectorQString(), MyVectorPairQStringQString(), VisualState::Normal);
             break;
         }
         
         // 将找到的最小边加入MST
         mstVertices.insert(minTo);
-        mstEdges.insert(std::make_pair(minFrom, minTo));
+        mstEdges.insert(MyPairQStringQString(minFrom, minTo));
         
+        MyVectorQString minVec;
+        minVec.push_back(minFrom);
+        minVec.push_back(minTo);
+        MyVectorPairQStringQString minEdgeVec;
+        minEdgeVec.push_back(MyPairQStringQString(minFrom, minTo));
         addAlgorithmStep(QString("找到最小权重边：%1 -> %2 (权重: %3)，加入最小生成树").arg(minFrom).arg(minTo).arg(minWeight),
-                        {minFrom, minTo}, {{minFrom, minTo}}, VisualState::Selected);
+                        minVec, minEdgeVec, VisualState::Selected);
         
+        MyVectorQString minToVec;
+        minToVec.push_back(minTo);
         addAlgorithmStep(QString("顶点 %1 已加入最小生成树").arg(minTo),
-                        {minTo}, {}, VisualState::Selected);
+                        minToVec, MyVectorPairQStringQString(), VisualState::Selected);
     }
     
     addAlgorithmStep(QString("Prim算法完成，最小生成树包含 %1 个顶点和 %2 条边").arg(mstVertices.size()).arg(mstEdges.size()),
-                    {}, {}, VisualState::Normal);
+                    MyVectorQString(), MyVectorPairQStringQString(), VisualState::Normal);
 }
 
 void GraphModel::generateKruskalSteps()
@@ -758,34 +819,37 @@ void GraphModel::generateKruskalSteps()
         return;
     }
     
-    addAlgorithmStep("开始Kruskal最小生成树算法", {}, {}, VisualState::Current);
+    addAlgorithmStep("开始Kruskal最小生成树算法", MyVectorQString(), MyVectorPairQStringQString(), VisualState::Current);
     
     // 收集所有边并按权重排序
-    struct EdgeInfo {
-        QString from;
-        QString to;
-        int weight;
-    };
-    
-    std::vector<EdgeInfo> allEdges;
-    for (const auto &pair : m_edges) {
-        EdgeItem *edge = pair.second;
+    MyVectorEdgeInfo allEdges;
+    for (size_t i = 0; i < m_edges.size(); ++i) {
+        EdgeItem *edge = m_edges.valueAt(i);
         if (edge) {
-            allEdges.push_back({pair.first.first, pair.first.second, edge->getWeight()});
+            EdgeInfo edgeInfo(m_edges.keyAt(i).first, m_edges.keyAt(i).second, edge->getWeight());
+            allEdges.push_back(edgeInfo);
         }
     }
     
-    // 按权重排序
-    std::sort(allEdges.begin(), allEdges.end(), 
-              [](const EdgeInfo &a, const EdgeInfo &b) { return a.weight < b.weight; });
+    // 按权重排序（使用冒泡排序）
+    for (size_t i = 0; i < allEdges.size(); ++i) {
+        for (size_t j = 0; j < allEdges.size() - 1 - i; ++j) {
+            if (allEdges[j + 1].weight < allEdges[j].weight) {
+                EdgeInfo temp = allEdges[j];
+                allEdges[j] = allEdges[j + 1];
+                allEdges[j + 1] = temp;
+            }
+        }
+    }
     
     addAlgorithmStep(QString("收集所有边并按权重排序，共 %1 条边").arg(allEdges.size()),
-                    {}, {}, VisualState::Normal);
+                    MyVectorQString(), MyVectorPairQStringQString(), VisualState::Normal);
     
     // 并查集：每个顶点的父节点
-    std::map<QString, QString> parent;
-    for (const auto &pair : m_vertices) {
-        parent[pair.first] = pair.first;  // 初始时每个顶点是自己的父节点
+    MyMapQStringToQString parent;
+    for (size_t i = 0; i < m_vertices.size(); ++i) {
+        QString key = m_vertices.keyAt(i);
+        parent[key] = key;  // 初始时每个顶点是自己的父节点
     }
     
     // 查找根节点
@@ -809,22 +873,23 @@ void GraphModel::generateKruskalSteps()
     };
     
     // 已加入最小生成树的边集合
-    std::set<std::pair<QString, QString>> mstEdges;
+    MySetPairQStringQString mstEdges;
     int edgesAdded = 0;
     
-    for (const auto &edgeInfo : allEdges) {
+    for (size_t idx = 0; idx < allEdges.size(); ++idx) {
+        const EdgeInfo &edgeInfo = allEdges[idx];
         QString rootFrom = findRoot(edgeInfo.from);
         QString rootTo = findRoot(edgeInfo.to);
         
         if (rootFrom != rootTo) {
             // 不在同一连通分量中，可以加入MST
             parent[rootFrom] = rootTo;  // 合并两个连通分量
-            mstEdges.insert(std::make_pair(edgeInfo.from, edgeInfo.to));
+            mstEdges.insert(MyPairQStringQString(edgeInfo.from, edgeInfo.to));
             edgesAdded++;
             
             addAlgorithmStep(QString("选择边：%1 -> %2 (权重: %3)，加入最小生成树").arg(edgeInfo.from)
                             .arg(edgeInfo.to).arg(edgeInfo.weight),
-                            {edgeInfo.from, edgeInfo.to}, {{edgeInfo.from, edgeInfo.to}}, VisualState::Selected);
+                            MyVectorQString(), MyVectorPairQStringQString(), VisualState::Selected);
         }
         
         // 如果已经添加了n-1条边，MST完成
@@ -834,7 +899,7 @@ void GraphModel::generateKruskalSteps()
     }
     
     addAlgorithmStep(QString("Kruskal算法完成，最小生成树包含 %1 条边").arg(edgesAdded),
-                    {}, {}, VisualState::Normal);
+                    MyVectorQString(), MyVectorPairQStringQString(), VisualState::Normal);
 }
 
 void GraphModel::generateTopologicalSortSteps()
@@ -844,35 +909,38 @@ void GraphModel::generateTopologicalSortSteps()
     }
     
     if (!m_isDirected) {
-        addAlgorithmStep("拓扑排序只能用于有向图", {}, {}, VisualState::Normal);
+        addAlgorithmStep("拓扑排序只能用于有向图", MyVectorQString(), MyVectorPairQStringQString(), VisualState::Normal);
         return;
     }
     
-    addAlgorithmStep("开始拓扑排序", {}, {}, VisualState::Current);
+    addAlgorithmStep("开始拓扑排序", MyVectorQString(), MyVectorPairQStringQString(), VisualState::Current);
     
     // 计算每个顶点的入度
-    std::map<QString, int> inDegree;
-    for (const auto &pair : m_vertices) {
-        inDegree[pair.first] = 0;
+    MyMapQStringToInt inDegree;
+    for (size_t i = 0; i < m_vertices.size(); ++i) {
+        inDegree[m_vertices.keyAt(i)] = 0;
     }
     
-    for (const auto &pair : m_edges) {
-        inDegree[pair.first.second]++;  // 目标顶点入度+1
+    for (size_t i = 0; i < m_edges.size(); ++i) {
+        inDegree[m_edges.keyAt(i).second]++;  // 目标顶点入度+1
     }
     
-    addAlgorithmStep("计算每个顶点的入度", {}, {}, VisualState::Normal);
+    addAlgorithmStep("计算每个顶点的入度", MyVectorQString(), MyVectorPairQStringQString(), VisualState::Normal);
     
     // 队列：存储入度为0的顶点
-    std::queue<QString> zeroInDegreeQueue;
-    for (const auto &pair : inDegree) {
-        if (pair.second == 0) {
-            zeroInDegreeQueue.push(pair.first);
-            addAlgorithmStep(QString("顶点 %1 入度为0，加入队列").arg(pair.first),
-                            {pair.first}, {}, VisualState::Current);
+    MyQueueQString zeroInDegreeQueue;
+    for (size_t i = 0; i < inDegree.size(); ++i) {
+        if (inDegree.valueAt(i) == 0) {
+            QString vertex = inDegree.keyAt(i);
+            zeroInDegreeQueue.push(vertex);
+            MyVectorQString vertexVec;
+            vertexVec.push_back(vertex);
+            addAlgorithmStep(QString("顶点 %1 入度为0，加入队列").arg(vertex),
+                            vertexVec, MyVectorPairQStringQString(), VisualState::Current);
         }
     }
     
-    std::vector<QString> topologicalOrder;
+    MyVectorQString topologicalOrder;
     
     while (!zeroInDegreeQueue.empty()) {
         QString current = zeroInDegreeQueue.front();
@@ -880,35 +948,44 @@ void GraphModel::generateTopologicalSortSteps()
         
         topologicalOrder.push_back(current);
         
+        MyVectorQString currentVec5;
+        currentVec5.push_back(current);
         addAlgorithmStep(QString("处理顶点 %1 (拓扑序第 %2 个)").arg(current).arg(topologicalOrder.size()),
-                        {current}, {}, VisualState::Visited);
+                        currentVec5, MyVectorPairQStringQString(), VisualState::Visited);
         
         // 减少所有邻居的入度
-        std::vector<QString> neighbors = getNeighbors(current);
-        for (const QString &neighbor : neighbors) {
+        MyVectorQString neighbors = getNeighbors(current);
+        for (size_t i = 0; i < neighbors.size(); ++i) {
+            const QString &neighbor = neighbors.at(i);
             inDegree[neighbor]--;
             
+            MyVectorQString neighborVec3;
+            neighborVec3.push_back(neighbor);
+            MyVectorPairQStringQString edgeVec3;
+            edgeVec3.push_back(MyPairQStringQString(current, neighbor));
             addAlgorithmStep(QString("减少顶点 %1 的入度，当前入度: %2").arg(neighbor).arg(inDegree[neighbor]),
-                            {neighbor}, {{current, neighbor}}, VisualState::Current);
+                            neighborVec3, edgeVec3, VisualState::Current);
             
             if (inDegree[neighbor] == 0) {
                 zeroInDegreeQueue.push(neighbor);
+                MyVectorQString neighborVec4;
+                neighborVec4.push_back(neighbor);
                 addAlgorithmStep(QString("顶点 %1 入度变为0，加入队列").arg(neighbor),
-                                {neighbor}, {}, VisualState::Current);
+                                neighborVec4, MyVectorPairQStringQString(), VisualState::Current);
             }
         }
     }
     
     if (topologicalOrder.size() < m_vertices.size()) {
-        addAlgorithmStep("图中存在环，无法完成拓扑排序", {}, {}, VisualState::Normal);
+        addAlgorithmStep("图中存在环，无法完成拓扑排序", MyVectorQString(), MyVectorPairQStringQString(), VisualState::Normal);
     } else {
         QString orderStr = "拓扑排序结果: ";
         for (size_t i = 0; i < topologicalOrder.size(); i++) {
             if (i > 0) orderStr += " -> ";
             orderStr += topologicalOrder[i];
         }
-        addAlgorithmStep(orderStr, {}, {}, VisualState::Normal);
-        addAlgorithmStep("拓扑排序完成", {}, {}, VisualState::Normal);
+        addAlgorithmStep(orderStr, MyVectorQString(), MyVectorPairQStringQString(), VisualState::Normal);
+        addAlgorithmStep("拓扑排序完成", MyVectorQString(), MyVectorPairQStringQString(), VisualState::Normal);
     }
 }
 
@@ -928,8 +1005,8 @@ void GraphModel::resetAlgorithmState()
 }
 
 void GraphModel::addAlgorithmStep(const QString &description, 
-                                 const std::vector<QString> &vertices,
-                                 const std::vector<std::pair<QString, QString>> &edges,
+                                 const MyVectorQString &vertices,
+                                 const MyVectorPairQStringQString &edges,
                                  VisualState state,
                                  int delay)
 {
@@ -954,34 +1031,34 @@ QPointF GraphModel::calculateCircularPosition(int index, int total, qreal radius
 void GraphModel::applyForceDirectedStep()
 {
     // 简化的力导向布局实现
-    std::map<QString, QPointF> forces;
+    MyMapQStringToQPointF forces;
     
     // 初始化力
-    for (const auto &pair : m_vertices) {
-        forces[pair.first] = QPointF(0, 0);
+    for (size_t i = 0; i < m_vertices.size(); ++i) {
+        forces[m_vertices.keyAt(i)] = QPointF(0, 0);
     }
     
     // 计算排斥力（所有顶点对之间）
-    for (auto it1 = m_vertices.begin(); it1 != m_vertices.end(); ++it1) {
-        for (auto it2 = std::next(it1); it2 != m_vertices.end(); ++it2) {
-            QPointF pos1 = it1->second->pos();
-            QPointF pos2 = it2->second->pos();
+    for (size_t i1 = 0; i1 < m_vertices.size(); ++i1) {
+        for (size_t i2 = i1 + 1; i2 < m_vertices.size(); ++i2) {
+            QPointF pos1 = m_vertices.valueAt(i1)->pos();
+            QPointF pos2 = m_vertices.valueAt(i2)->pos();
             QPointF diff = pos1 - pos2;
             qreal distance = qSqrt(diff.x() * diff.x() + diff.y() * diff.y());
             
             if (distance > 0) {
                 qreal force = 100.0 / (distance * distance);
                 QPointF forceVector = (diff / distance) * force;
-                forces[it1->first] += forceVector;
-                forces[it2->first] -= forceVector;
+                forces[m_vertices.keyAt(i1)] += forceVector;
+                forces[m_vertices.keyAt(i2)] -= forceVector;
             }
         }
     }
     
     // 计算吸引力（相邻顶点之间）
-    for (const auto &edgePair : m_edges) {
-        const QString &from = edgePair.first.first;
-        const QString &to = edgePair.first.second;
+    for (size_t i = 0; i < m_edges.size(); ++i) {
+        const QString &from = m_edges.keyAt(i).first;
+        const QString &to = m_edges.keyAt(i).second;
         
         QPointF pos1 = m_vertices[from]->pos();
         QPointF pos2 = m_vertices[to]->pos();
@@ -998,25 +1075,25 @@ void GraphModel::applyForceDirectedStep()
     
     // 应用力
     const qreal damping = 0.1;
-    for (auto &pair : m_vertices) {
-        QPointF force = forces[pair.first] * damping;
-        QPointF newPos = pair.second->pos() + force;
-        pair.second->setPosition(newPos);
+    for (size_t i = 0; i < m_vertices.size(); ++i) {
+        QPointF force = forces[m_vertices.keyAt(i)] * damping;
+        QPointF newPos = m_vertices.valueAt(i)->pos() + force;
+        m_vertices.valueAt(i)->setPosition(newPos);
     }
     
     // 更新边的位置
-    for (auto &pair : m_edges) {
-        pair.second->updatePosition();
+    for (size_t i = 0; i < m_edges.size(); ++i) {
+        m_edges.valueAt(i)->updatePosition();
     }
 }
 
-std::vector<QString> GraphModel::getNeighbors(const QString &vertex) const
+MyVectorQString GraphModel::getNeighbors(const QString &vertex) const
 {
-    std::vector<QString> neighbors;
-    auto it = m_adjacencyList.find(vertex);
-    if (it != m_adjacencyList.end()) {
-        for (const QString &neighbor : it->second) {
-            neighbors.push_back(neighbor);
+    MyVectorQString neighbors;
+    const MySetQString* ptr = m_adjacencyList.find(vertex);
+    if (ptr != nullptr) {
+        for (size_t i = 0; i < ptr->size(); ++i) {
+            neighbors.push_back(ptr->at(i));
         }
     }
     return neighbors;
@@ -1026,8 +1103,8 @@ bool GraphModel::hasPath(const QString &from, const QString &to) const
 {
     if (from == to) return true;
     
-    std::set<QString> visited;
-    std::queue<QString> queue;
+    MySetQString visited;
+    MyQueueQString queue;
     
     queue.push(from);
     visited.insert(from);
@@ -1036,12 +1113,13 @@ bool GraphModel::hasPath(const QString &from, const QString &to) const
         QString current = queue.front();
         queue.pop();
         
-        std::vector<QString> neighbors = getNeighbors(current);
-        for (const QString &neighbor : neighbors) {
+        MyVectorQString neighbors = getNeighbors(current);
+        for (size_t i = 0; i < neighbors.size(); ++i) {
+            const QString &neighbor = neighbors.at(i);
             if (neighbor == to) {
                 return true;
             }
-            if (visited.find(neighbor) == visited.end()) {
+            if (!visited.find(neighbor)) {
                 visited.insert(neighbor);
                 queue.push(neighbor);
             }
@@ -1051,15 +1129,24 @@ bool GraphModel::hasPath(const QString &from, const QString &to) const
     return false;
 }
 
-std::vector<std::pair<QString, QString>> GraphModel::getAllEdgesSorted() const
+MyVectorPairQStringQString GraphModel::getAllEdgesSorted() const
 {
-    std::vector<std::pair<QString, QString>> edges;
-    for (const auto &pair : m_edges) {
-        edges.push_back(pair.first);
+    MyVectorPairQStringQString edges;
+    for (size_t i = 0; i < m_edges.size(); ++i) {
+        edges.push_back(MyPairQStringQString(m_edges.keyAt(i).first, m_edges.keyAt(i).second));
     }
     
-    // 按权重排序（这里简化处理）
-    std::sort(edges.begin(), edges.end());
+    // 按权重排序（这里简化处理，使用冒泡排序）
+    // MyPairQStringQString 已经实现了 operator<，所以可以直接比较
+    for (size_t i = 0; i < edges.size(); ++i) {
+        for (size_t j = 0; j < edges.size() - 1 - i; ++j) {
+            if (edges[j + 1] < edges[j]) {
+                MyPairQStringQString temp = edges[j];
+                edges[j] = edges[j + 1];
+                edges[j + 1] = temp;
+            }
+        }
+    }
     return edges;
 }
 
@@ -1083,9 +1170,9 @@ bool GraphModel::saveToFile(const QString &fileName) const
     
     // 保存顶点信息
     QJsonArray verticesArray;
-    for (const auto &vertexPair : m_vertices) {
-        const QString &label = vertexPair.first;
-        VertexItem *vertex = vertexPair.second;
+    for (size_t i = 0; i < m_vertices.size(); ++i) {
+        const QString &label = m_vertices.keyAt(i);
+        VertexItem *vertex = m_vertices.valueAt(i);
         
         QJsonObject vertexObject;
         vertexObject["label"] = label;
@@ -1099,18 +1186,18 @@ bool GraphModel::saveToFile(const QString &fileName) const
     
     // 保存边信息
     QJsonArray edgesArray;
-    std::set<std::pair<QString, QString>> processedEdges; // 避免重复保存无向图的边
+    MySetPairQStringQString processedEdges; // 避免重复保存无向图的边
     
-    for (const auto &edgePair : m_edges) {
-        const QString &from = edgePair.first.first;
-        const QString &to = edgePair.first.second;
-        EdgeItem *edge = edgePair.second;
+    for (size_t i = 0; i < m_edges.size(); ++i) {
+        const QString &from = m_edges.keyAt(i).first;
+        const QString &to = m_edges.keyAt(i).second;
+        EdgeItem *edge = m_edges.valueAt(i);
         
         // 对于无向图，只保存一次边（避免重复）
         if (!m_isDirected) {
-            std::pair<QString, QString> normalizedEdge = (from < to) ? 
-                std::make_pair(from, to) : std::make_pair(to, from);
-            if (processedEdges.find(normalizedEdge) != processedEdges.end()) {
+            MyPairQStringQString normalizedEdge = (from < to) ? 
+                MyPairQStringQString(from, to) : MyPairQStringQString(to, from);
+            if (processedEdges.find(normalizedEdge)) {
                 continue;
             }
             processedEdges.insert(normalizedEdge);
@@ -1207,4 +1294,145 @@ bool GraphModel::loadFromFile(const QString &fileName)
     qDebug() << "图已从文件加载:" << fileName;
     qDebug() << "顶点数:" << m_vertices.size() << "边数:" << m_edges.size();
     return true;
+}
+
+// ==================== 矩阵和邻接表表示实现 ====================
+
+QMap<QString, QMap<QString, int>> GraphModel::getMatrixRepresentation() const
+{
+    QMap<QString, QMap<QString, int>> matrix;
+    
+    // 初始化所有顶点对为 -1（不相连）
+    for (size_t i = 0; i < m_vertices.size(); ++i) {
+        QString from = m_vertices.keyAt(i);
+        QMap<QString, int> row;
+        for (size_t j = 0; j < m_vertices.size(); ++j) {
+            QString to = m_vertices.keyAt(j);
+            row[to] = -1;
+        }
+        matrix[from] = row;
+    }
+    
+    // 填充边的权重
+    for (size_t i = 0; i < m_edges.size(); ++i) {
+        QString from = m_edges.keyAt(i).first;
+        QString to = m_edges.keyAt(i).second;
+        EdgeItem *edge = m_edges.valueAt(i);
+        int weight = edge->getWeight();
+        
+        // 如果权重为0或1，在无权图中显示1
+        if (weight <= 1) {
+            weight = 1;
+        }
+        
+        matrix[from][to] = weight;
+        
+        // 如果是无向图，也设置反向
+        if (!m_isDirected) {
+            matrix[to][from] = weight;
+        }
+    }
+    
+    return matrix;
+}
+
+void GraphModel::updateFromMatrix(const QMap<QString, QMap<QString, int>> &matrix)
+{
+    // 先删除所有现有边
+    MyVectorPairQStringQString edgesToRemove;
+    for (size_t i = 0; i < m_edges.size(); ++i) {
+        edgesToRemove.push_back(MyPairQStringQString(m_edges.keyAt(i).first, m_edges.keyAt(i).second));
+    }
+    for (size_t i = 0; i < edgesToRemove.size(); ++i) {
+        const MyPairQStringQString &edgePair = edgesToRemove.at(i);
+        removeEdge(edgePair.first, edgePair.second);
+    }
+    
+    // 根据矩阵添加新边
+    for (auto it = matrix.begin(); it != matrix.end(); ++it) {
+        QString from = it.key();
+        const QMap<QString, int> &row = it.value();
+        
+        for (auto jt = row.begin(); jt != row.end(); ++jt) {
+            QString to = jt.key();
+            int weight = jt.value();
+            
+            // 如果值为 -1，表示不相连，跳过
+            if (weight == -1) {
+                continue;
+            }
+            
+            // 如果是无向图且 from > to，跳过（避免重复）
+            if (!m_isDirected && from > to) {
+                continue;
+            }
+            
+            // 添加边
+            addEdge(from, to, weight);
+        }
+    }
+}
+
+QMap<QString, QList<QPair<QString, int>>> GraphModel::getAdjacencyListRepresentation() const
+{
+    QMap<QString, QList<QPair<QString, int>>> adjList;
+    
+    // 初始化所有顶点的邻接表为空
+    for (size_t i = 0; i < m_vertices.size(); ++i) {
+        adjList[m_vertices.keyAt(i)] = QList<QPair<QString, int>>();
+    }
+    
+    // 填充邻接表
+    for (size_t i = 0; i < m_edges.size(); ++i) {
+        QString from = m_edges.keyAt(i).first;
+        QString to = m_edges.keyAt(i).second;
+        EdgeItem *edge = m_edges.valueAt(i);
+        int weight = edge->getWeight();
+        
+        // 如果权重为0或1，在无权图中显示1
+        if (weight <= 1) {
+            weight = 1;
+        }
+        
+        adjList[from].append(qMakePair(to, weight));
+        
+        // 如果是无向图，也添加到反向
+        if (!m_isDirected) {
+            adjList[to].append(qMakePair(from, weight));
+        }
+    }
+    
+    return adjList;
+}
+
+void GraphModel::updateFromAdjacencyList(const QMap<QString, QList<QPair<QString, int>>> &adjList)
+{
+    // 先删除所有现有边
+    MyVectorPairQStringQString edgesToRemove;
+    for (size_t i = 0; i < m_edges.size(); ++i) {
+        edgesToRemove.push_back(MyPairQStringQString(m_edges.keyAt(i).first, m_edges.keyAt(i).second));
+    }
+    for (size_t i = 0; i < edgesToRemove.size(); ++i) {
+        const MyPairQStringQString &edgePair = edgesToRemove.at(i);
+        removeEdge(edgePair.first, edgePair.second);
+    }
+    
+    // 根据邻接表添加新边
+    for (auto it = adjList.begin(); it != adjList.end(); ++it) {
+        QString from = it.key();
+        const QList<QPair<QString, int>> &neighbors = it.value();
+        
+        for (const auto &neighborPair : neighbors) {
+            QString to = neighborPair.first;
+            int weight = neighborPair.second;
+            
+            // 如果是无向图且 from > to，跳过（避免重复）
+            if (!m_isDirected && from > to) {
+                continue;
+            }
+            
+            // 添加边
+            addEdge(from, to, weight);
+        }
+    }
 }

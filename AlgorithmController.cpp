@@ -1,10 +1,13 @@
 #include "AlgorithmController.h"
 #include "GraphModel.h"
 #include "SortModel.h"
+#include "MatrixRepresentationDialog.h"
+#include "AdjacencyListRepresentationDialog.h"
 #include <QApplication>
 #include <QDateTime>
 #include <QLineEdit>
 #include <QTextCursor>
+#include <QMessageBox>
 #include <QDebug>
 //代码阅读了图的一半，排序还没看 应该差不多
 
@@ -518,6 +521,16 @@ void GraphAlgorithmController::setupGraphOperationsPanel()//ok
             m_edgeToEdit->clear();
         }
     });
+    
+    // 图表示按钮
+    m_showMatrixButton = new QPushButton("显示矩阵表示");
+    m_showAdjacencyListButton = new QPushButton("显示邻接表表示");
+    
+    operationsLayout->addWidget(m_showMatrixButton, 2, 0, 1, 2);
+    operationsLayout->addWidget(m_showAdjacencyListButton, 2, 2, 1, 2);
+    
+    connect(m_showMatrixButton, &QPushButton::clicked, this, &GraphAlgorithmController::onShowMatrixButtonClicked);
+    connect(m_showAdjacencyListButton, &QPushButton::clicked, this, &GraphAlgorithmController::onShowAdjacencyListButtonClicked);
 }
 
 void GraphAlgorithmController::setupLayoutPanel()//ok
@@ -666,6 +679,30 @@ void GraphAlgorithmController::onLayoutButtonClicked()
     // 具体实现可以根据需要添加
 }
 
+void GraphAlgorithmController::onShowMatrixButtonClicked()
+{
+    if (!m_graphModel) {
+        QMessageBox::warning(nullptr, "错误", "图模型未设置");
+        return;
+    }
+    
+    MatrixRepresentationDialog *dialog = new MatrixRepresentationDialog(m_graphModel, nullptr);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->show();
+}
+
+void GraphAlgorithmController::onShowAdjacencyListButtonClicked()
+{
+    if (!m_graphModel) {
+        QMessageBox::warning(nullptr, "错误", "图模型未设置");
+        return;
+    }
+    
+    AdjacencyListRepresentationDialog *dialog = new AdjacencyListRepresentationDialog(m_graphModel, nullptr);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->show();
+}
+
 // ==================== SortAlgorithmController 实现 ====================
 
 SortAlgorithmController::SortAlgorithmController(QObject *parent)
@@ -759,7 +796,7 @@ void SortAlgorithmController::setRandomData(int size, int minValue, int maxValue
     }
 }
 
-void SortAlgorithmController::setCustomData(const std::vector<int> &data)
+void SortAlgorithmController::setCustomData(const MyVectorInt &data)
 {
     if (m_sortModel) {
         m_sortModel->setData(data);
