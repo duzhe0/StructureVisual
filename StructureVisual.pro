@@ -18,7 +18,6 @@ SOURCES += \
     AlgorithmController.cpp \
     MatrixRepresentationDialog.cpp \
     AdjacencyListRepresentationDialog.cpp \
-    simplestring.cpp \
     MyVectorQString.cpp \
     MyVectorInt.cpp \
     MyVectorVertexItemPtr.cpp \
@@ -42,8 +41,6 @@ SOURCES += \
 
 HEADERS += \
     mainwindow.h \
-    model.h \
-    simplestring.h \
     VisualItem.h \
     GraphModel.h \
     SortModel.h \
