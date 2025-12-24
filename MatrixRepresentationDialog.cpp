@@ -21,7 +21,7 @@ void MatrixRepresentationDialog::setupUI()
     
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     
-    m_statusLabel = new QLabel("双击单元格编辑，编辑后点击'应用更改'更新图结构");
+    m_statusLabel = new QLabel("双击单元格编辑，修改后会自动更新图结构");
     mainLayout->addWidget(m_statusLabel);
     
     m_tableWidget = new QTableWidget(this);
@@ -110,12 +110,37 @@ void MatrixRepresentationDialog::populateMatrix()
     m_tableWidget->resizeRowsToContents();
     
     m_updating = false;
-    m_statusLabel->setText("双击单元格编辑，编辑后点击'应用更改'更新图结构");
+    m_statusLabel->setText("双击单元格编辑，修改后会自动更新图结构");
 }
 
 void MatrixRepresentationDialog::onCellChanged(int row, int column)
 {
     if (m_updating || row == 0 || column == 0) {
+        return;
+    }
+    
+    // 检查算法是否正在运行
+    if (m_model && m_model->isAlgorithmRunning()) {
+        QMessageBox::warning(this, "操作被禁止", "算法正在执行中，无法修改图结构。请先停止算法。");
+        m_updating = true;
+        // 恢复原值
+        QTableWidgetItem *rowHeader = m_tableWidget->item(row, 0);
+        QTableWidgetItem *colHeader = m_tableWidget->item(0, column);
+        if (rowHeader && colHeader) {
+            QString from = rowHeader->text();
+            QString to = colHeader->text();
+            QMap<QString, QMap<QString, int>> matrix = m_model->getMatrixRepresentation();
+            int weight = matrix[from][to];
+            QTableWidgetItem *item = m_tableWidget->item(row, column);
+            if (item) {
+                if (weight == -1) {
+                    item->setText("-1");
+                } else {
+                    item->setText(QString::number(weight));
+                }
+            }
+        }
+        m_updating = false;
         return;
     }
     
@@ -153,6 +178,34 @@ void MatrixRepresentationDialog::onCellChanged(int row, int column)
         }
         m_updating = false;
         return;
+    }
+    
+    // 获取当前图结构中的旧值
+    QMap<QString, QMap<QString, int>> currentMatrix = m_model->getMatrixRepresentation();
+    int oldValue = currentMatrix[from][to];
+    
+    // 立即更新图结构
+    if (value == -1) {
+        // 如果新值是-1，删除边（如果存在）
+        if (oldValue != -1) {
+            m_model->removeEdge(from, to);
+            m_statusLabel->setText(QString("已删除边: %1 -> %2").arg(from).arg(to));
+        }
+    } else {
+        // 如果新值不是-1，更新或添加边
+        EdgeItem *existingEdge = m_model->getEdge(from, to);
+        if (existingEdge) {
+            // 边已存在，更新权重
+            existingEdge->setWeight(value);
+            m_statusLabel->setText(QString("已更新边权重: %1 -> %2 = %3").arg(from).arg(to).arg(value));
+        } else {
+            // 边不存在，添加新边
+            if (m_model->addEdge(from, to, value)) {
+                m_statusLabel->setText(QString("已添加边: %1 -> %2 = %3").arg(from).arg(to).arg(value));
+            } else {
+                m_statusLabel->setText(QString("添加边失败: %1 -> %2").arg(from).arg(to));
+            }
+        }
     }
     
     // 如果是无向图，同步更新对称位置
@@ -196,11 +249,22 @@ void MatrixRepresentationDialog::onRefreshButtonClicked()
 
 void MatrixRepresentationDialog::onApplyButtonClicked()
 {
+    // 检查算法是否正在运行
+    if (m_model && m_model->isAlgorithmRunning()) {
+        QMessageBox::warning(this, "操作被禁止", "算法正在执行中，无法修改图结构。请先停止算法。");
+        return;
+    }
+    
     updateGraphFromMatrix();
 }
 
 void MatrixRepresentationDialog::updateGraphFromMatrix()
 {
+    // 检查算法是否正在运行
+    if (m_model && m_model->isAlgorithmRunning()) {
+        QMessageBox::warning(this, "操作被禁止", "算法正在执行中，无法修改图结构。请先停止算法。");
+        return;
+    }
     if (!m_model) {
         return;
     }

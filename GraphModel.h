@@ -37,6 +37,19 @@ enum class GraphAlgorithm {
     TopologicalSort // 拓扑排序
 };
 
+// Dijkstra表格更新信息结构
+struct DijkstraTableUpdateInfo {
+    QString vertex;               // 顶点名称
+    int distance;                 // 最短距离
+    QString predecessor;           // 前驱顶点
+    bool visited;                  // 是否已访问
+    bool isValid;                  // 是否有效（用于判断是否需要更新表格）
+    
+    DijkstraTableUpdateInfo() : distance(INT_MAX), visited(false), isValid(false) {}
+    DijkstraTableUpdateInfo(const QString &v, int d, const QString &p, bool vis) 
+        : vertex(v), distance(d), predecessor(p), visited(vis), isValid(true) {}
+};
+
 // 图算法步骤结构
 struct AlgorithmStep {
     QString description;           // 步骤描述
@@ -44,6 +57,7 @@ struct AlgorithmStep {
     MyVectorPairQStringQString edges; // 涉及的边
     VisualState state;            // 可视化状态
     int delay;                    // 延迟时间(ms)
+    DijkstraTableUpdateInfo dijkstraTableUpdate; // Dijkstra表格更新信息（仅Dijkstra算法使用）
 };
 
 // 图数据模型类
@@ -120,6 +134,8 @@ signals:
     void vertexRemoved(const QString &label);
     void edgeAdded(const QString &from, const QString &to, int weight);
     void edgeRemoved(const QString &from, const QString &to);
+    // Dijkstra算法表格更新信号
+    void dijkstraTableUpdate(const QString &vertex, int distance, const QString &predecessor, bool visited);
 
 private slots:
     void processNextStep();
@@ -147,6 +163,8 @@ private:
     MySetPairQStringQString m_visitedEdges;
     MyQueueQString m_bfsQueue;
     MyStackQString m_dfsStack;
+    MySetPairQStringQString m_primMstEdges;  // Prim算法中已加入MST的边集合
+    MySetPairQStringQString m_kruskalMstEdges;  // Kruskal算法中已加入MST的边集合
     
     // 算法实现
     void generateDFSSteps(const QString &startVertex);
@@ -162,7 +180,8 @@ private:
                          const MyVectorQString &vertices = MyVectorQString(),
                          const MyVectorPairQStringQString &edges = MyVectorPairQStringQString(),
                          VisualState state = VisualState::Current,
-                         int delay = 1000);
+                         int delay = 1000,
+                         const DijkstraTableUpdateInfo &dijkstraTableUpdate = DijkstraTableUpdateInfo());
     
     // 布局算法辅助
     QPointF calculateCircularPosition(int index, int total, qreal radius = 200.0);

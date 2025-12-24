@@ -82,7 +82,6 @@ private:
     // 状态栏组件
     QLabel *m_statusLabel;
     QLabel *m_algorithmLabel;
-    QProgressBar *m_progressBar;
     QTimer *m_statusTimer;
     
     // 菜单和工具栏

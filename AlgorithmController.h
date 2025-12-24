@@ -17,6 +17,7 @@
 #include <QGridLayout>
 #include <QGraphicsView>
 #include <QGraphicsScene>
+#include <QPointer>
 #include "MyVectorInt.h"
 
 // 前向声明
@@ -43,10 +44,6 @@ public:
     virtual void stepAlgorithm() = 0;
     virtual void resetAlgorithm() = 0;
     
-    // 速度控制
-    void setAnimationSpeed(int speed);
-    int getAnimationSpeed() const { return m_animationSpeed; }
-    
     // 状态查询
     bool isRunning() const { return m_isRunning; }
     bool isPaused() const { return m_isPaused; }
@@ -58,7 +55,6 @@ signals:
     void algorithmStopped();
     void algorithmCompleted();
     void stepCompleted(const QString &description);
-    void speedChanged(int speed);
 
 protected:
     // 控制面板组件
@@ -69,21 +65,16 @@ protected:
     QPushButton *m_stopButton;
     QPushButton *m_stepButton;
     QPushButton *m_resetButton;
-    QSlider *m_speedSlider;
-    QLabel *m_speedLabel;
-    QProgressBar *m_progressBar;
     QTextEdit *m_logTextEdit;
     
     // 状态管理
     bool m_isRunning;
     bool m_isPaused;
-    int m_animationSpeed;
     
     // 辅助方法
     void setupControlPanel();
     void updateButtonStates();
     void logMessage(const QString &message);
-    void updateProgress(int current, int total);
 };
 
 // 图算法控制器
@@ -132,7 +123,6 @@ private slots:
     void onAlgorithmPaused();
     void onAlgorithmResumed();
     void onAlgorithmStopped();
-    void onSpeedSliderChanged(int value);
     void onStartButtonClicked();
     void onPauseButtonClicked();
     void onResumeButtonClicked();
@@ -143,9 +133,11 @@ private slots:
     void onStartVertexChanged();
     void onDirectedCheckBoxToggled(bool checked);
     void onLayoutButtonClicked();
+    void onDijkstraTableUpdate(const QString &vertex, int distance, const QString &predecessor, bool visited);
 
 private:
     GraphModel *m_graphModel;
+    QPointer<class DijkstraTableDialog> m_dijkstraTableDialog;  // 使用QPointer安全管理对话框
     
     // 控制面板组件
     QComboBox *m_algorithmComboBox;
@@ -173,6 +165,7 @@ private:
     void setupGraphControlPanel();
     void setupGraphOperationsPanel();
     void setupLayoutPanel();
+    void updateGraphOperationButtons();
     
 private slots:
     void onShowMatrixButtonClicked();
@@ -219,7 +212,6 @@ private slots:
     void onAlgorithmPaused();
     void onAlgorithmResumed();
     void onAlgorithmStopped();
-    void onSpeedSliderChanged(int value);
     void onStartButtonClicked();
     void onPauseButtonClicked();
     void onResumeButtonClicked();

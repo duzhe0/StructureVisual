@@ -16,6 +16,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QTimer>
 #include <QDebug>
 
 MainWindow::MainWindow(QWidget *parent)
@@ -34,7 +35,6 @@ MainWindow::MainWindow(QWidget *parent)
     , m_sortController(nullptr)
     , m_statusLabel(nullptr)
     , m_algorithmLabel(nullptr)
-    , m_progressBar(nullptr)
     , m_statusTimer(nullptr)
     , m_fileMenu(nullptr)
     , m_editMenu(nullptr)
@@ -124,6 +124,10 @@ void MainWindow::setupMenuBar()
         if (m_currentMode == GraphMode) {
             m_graphModel->clearGraph();
         } else {
+            // 如果算法正在运行，先停止算法
+            if (m_sortModel && m_sortModel->isAlgorithmRunning()) {
+                m_sortModel->stopAlgorithm();
+            }
             m_sortModel->clearData();
         }
     });
@@ -279,12 +283,6 @@ void MainWindow::setupStatusBar()
     //永久组件不会被挤动
     statusBar()->addPermanentWidget(m_algorithmLabel);
     
-    // 进度条
-    m_progressBar = new QProgressBar();
-    m_progressBar->setVisible(false);
-    m_progressBar->setMaximumWidth(200);
-    statusBar()->addPermanentWidget(m_progressBar);
-    
     // 状态更新定时器
     m_statusTimer = new QTimer(this);
     connect(m_statusTimer, &QTimer::timeout, this, &MainWindow::updateStatusBar);
@@ -389,6 +387,18 @@ void MainWindow::setupSortVisualization()
     // 设置排序模型的场景
     m_sortModel->setScene(m_sortScene);
     
+    // 连接数据变化信号，自动适应窗口
+    connect(m_sortModel, &SortModel::dataChanged, this, [this]() {
+        if (m_sortView && m_sortScene) {
+            // 延迟调用，确保柱状图已创建
+            QTimer::singleShot(100, this, [this]() {
+                if (m_sortScene->items().size() > 0) {
+                    m_sortView->fitInView(m_sortScene->itemsBoundingRect(), Qt::KeepAspectRatio);
+                }
+            });
+        }
+    });
+    
     // 创建排序控制器
     m_sortController = new SortAlgorithmController(this);
     m_sortController->setSortModel(m_sortModel);
@@ -407,12 +417,22 @@ void MainWindow::setupSortVisualization()
     
     QPushButton *createSampleDataBtn = new QPushButton("生成随机数据");
     connect(createSampleDataBtn, &QPushButton::clicked, this, [this]() {
+        // 如果算法正在运行，先停止算法
+        if (m_sortModel && m_sortModel->isAlgorithmRunning()) {
+            m_sortModel->stopAlgorithm();
+            m_statusLabel->setText("算法已停止，正在生成新数据");
+        }
         m_sortModel->setRandomData(20, 1, 100);
         m_statusLabel->setText("随机数据已生成");
     });
     
     QPushButton *clearDataBtn = new QPushButton("清空数据");
     connect(clearDataBtn, &QPushButton::clicked, this, [this]() {
+        // 如果算法正在运行，先停止算法
+        if (m_sortModel && m_sortModel->isAlgorithmRunning()) {
+            m_sortModel->stopAlgorithm();
+            m_statusLabel->setText("算法已停止，正在清空数据");
+        }
         m_sortModel->clearData();
         m_statusLabel->setText("数据已清空");
     });
@@ -492,14 +512,11 @@ void MainWindow::switchToSortMode()
 
 void MainWindow::onAlgorithmStarted()
 {
-    m_progressBar->setVisible(true);
-    m_progressBar->setValue(0);
     m_statusLabel->setText("算法执行中...");
 }
 
 void MainWindow::onAlgorithmCompleted()
 {
-    m_progressBar->setVisible(false);
     m_statusLabel->setText("算法执行完成");
 }
 

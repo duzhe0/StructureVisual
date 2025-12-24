@@ -3,12 +3,14 @@
 #include "SortModel.h"
 #include "MatrixRepresentationDialog.h"
 #include "AdjacencyListRepresentationDialog.h"
+#include "DijkstraTableDialog.h"
 #include <QApplication>
 #include <QDateTime>
 #include <QLineEdit>
 #include <QTextCursor>
 #include <QMessageBox>
 #include <QDebug>
+#include <QStringList>
 //代码阅读了图的一半，排序还没看 应该差不多
 
 // ==================== AlgorithmController 基类实现 ====================
@@ -22,23 +24,10 @@ AlgorithmController::AlgorithmController(QObject *parent)
     , m_stopButton(nullptr)
     , m_stepButton(nullptr)
     , m_resetButton(nullptr)
-    , m_speedSlider(nullptr)
-    , m_speedLabel(nullptr)
-    , m_progressBar(nullptr)
     , m_logTextEdit(nullptr)
     , m_isRunning(false)
     , m_isPaused(false)
-    , m_animationSpeed(1000) // 默认1秒
 {
-}
-
-void AlgorithmController::setAnimationSpeed(int speed)//ok
-{
-    if (m_animationSpeed != speed) {
-        m_animationSpeed = speed;
-        //预留的信号，目前没有接收者
-        emit speedChanged(speed);
-    }
 }
 
 void AlgorithmController::setupControlPanel()//ok
@@ -64,33 +53,6 @@ void AlgorithmController::setupControlPanel()//ok
     buttonLayout->addWidget(m_stepButton);
     buttonLayout->addWidget(m_resetButton);
     
-    // 速度控制组
-    QGroupBox *speedGroup = new QGroupBox("动画速度");
-    QHBoxLayout *speedLayout = new QHBoxLayout(speedGroup);
-    
-    m_speedSlider = new QSlider(Qt::Horizontal);
-    m_speedSlider->setRange(100, 5000); // 100ms 到 5s
-    m_speedSlider->setValue(m_animationSpeed);
-    m_speedSlider->setTickPosition(QSlider::TicksBelow);
-    m_speedSlider->setTickInterval(500);
-    
-    m_speedLabel = new QLabel(QString("%1 ms").arg(m_animationSpeed));
-    
-    speedLayout->addWidget(new QLabel("慢"));
-    speedLayout->addWidget(m_speedSlider);
-    speedLayout->addWidget(new QLabel("快"));
-    speedLayout->addWidget(m_speedLabel);
-    
-    // 进度条
-    QGroupBox *progressGroup = new QGroupBox("进度");
-    QVBoxLayout *progressLayout = new QVBoxLayout(progressGroup);
-    
-    m_progressBar = new QProgressBar();
-    m_progressBar->setRange(0, 100);
-    m_progressBar->setValue(0);
-    
-    progressLayout->addWidget(m_progressBar);
-    
     // 日志显示
     QGroupBox *logGroup = new QGroupBox("算法日志");
     QVBoxLayout *logLayout = new QVBoxLayout(logGroup);
@@ -103,16 +65,8 @@ void AlgorithmController::setupControlPanel()//ok
     
     // 组装主布局
     mainLayout->addWidget(controlGroup);
-    mainLayout->addWidget(speedGroup);
-    mainLayout->addWidget(progressGroup);
     mainLayout->addWidget(logGroup);
     mainLayout->addStretch();
-    
-    // 连接信号
-    connect(m_speedSlider, &QSlider::valueChanged, this, &AlgorithmController::setAnimationSpeed);
-    connect(m_speedSlider, &QSlider::valueChanged, [this](int value) {
-        m_speedLabel->setText(QString("%1 ms").arg(value));
-    });
     
     updateButtonStates();
 }
@@ -140,21 +94,12 @@ void AlgorithmController::logMessage(const QString &message)//ok
     }
 }
 
-void AlgorithmController::updateProgress(int current, int total)//ok
-//目前没有被调用 
-//更新进度条的函数
-{
-    if (m_progressBar && total > 0) {
-        int percentage = (current * 100) / total;
-        m_progressBar->setValue(percentage);
-    }
-}
-
 // ==================== GraphAlgorithmController 实现 ====================
 
 GraphAlgorithmController::GraphAlgorithmController(QObject *parent)//ok
     : AlgorithmController(parent)
     , m_graphModel(nullptr)
+    , m_dijkstraTableDialog(nullptr)
     , m_algorithmComboBox(nullptr)
     , m_startVertexEdit(nullptr)
     , m_directedCheckBox(nullptr)
@@ -197,6 +142,8 @@ void GraphAlgorithmController::setGraphModel(GraphModel *model)//ok
         connect(m_graphModel, &GraphModel::algorithmPaused, this, &GraphAlgorithmController::onAlgorithmPaused);
         connect(m_graphModel, &GraphModel::algorithmResumed, this, &GraphAlgorithmController::onAlgorithmResumed);
         connect(m_graphModel, &GraphModel::algorithmStopped, this, &GraphAlgorithmController::onAlgorithmStopped);
+        // 连接Dijkstra表格更新信号
+        connect(m_graphModel, &GraphModel::dijkstraTableUpdate, this, &GraphAlgorithmController::onDijkstraTableUpdate);
     }
 }
 
@@ -216,6 +163,49 @@ void GraphAlgorithmController::startAlgorithm()//ok
     int algorithmIndex = m_algorithmComboBox->currentIndex();
     //Index转换为枚举类
     GraphAlgorithm algorithm = static_cast<GraphAlgorithm>(algorithmIndex);
+    
+    // 无论切换到什么算法，都要先关闭之前的Dijkstra表格对话框（如果存在）
+    if (m_dijkstraTableDialog) {
+        // 先断开信号连接，防止对话框删除后仍有信号发送
+        if (m_graphModel) {
+            disconnect(m_graphModel, &GraphModel::dijkstraTableUpdate, this, &GraphAlgorithmController::onDijkstraTableUpdate);
+        }
+        
+        // 关闭对话框（由于设置了WA_DeleteOnClose，会自动删除）
+        // QPointer会在对象删除后自动变为nullptr
+        m_dijkstraTableDialog->close();
+        m_dijkstraTableDialog.clear();  // 使用clear()而不是直接赋值nullptr
+        
+        // 重新连接信号（如果模型还存在）
+        if (m_graphModel) {
+            connect(m_graphModel, &GraphModel::dijkstraTableUpdate, this, &GraphAlgorithmController::onDijkstraTableUpdate);
+        }
+    }
+    
+    // 检查图是否为空
+    if (m_graphModel && m_graphModel->isEmpty()) {
+        logMessage("错误：图为空，无法执行算法。请先添加顶点和边。");
+        return;
+    }
+    
+    // 如果是Dijkstra算法，创建并显示表格对话框
+    if (algorithm == GraphAlgorithm::Dijkstra && m_graphModel) {
+        // 创建新的表格对话框
+        m_dijkstraTableDialog = new DijkstraTableDialog(startVertex, nullptr);
+        m_dijkstraTableDialog->setAttribute(Qt::WA_DeleteOnClose);
+        
+        // 初始化表格：获取所有顶点
+        MyVectorVertexItemPtr vertices = m_graphModel->getAllVertices();
+        QStringList vertexList;
+        for (size_t i = 0; i < vertices.size(); ++i) {
+            vertexList.append(vertices[i]->getLabel());
+        }
+        m_dijkstraTableDialog->initializeTable(vertexList);
+        
+        // 显示对话框
+        m_dijkstraTableDialog->show();
+    }
+    
     m_graphModel->executeAlgorithm(algorithm, startVertex);
     logMessage(QString("开始执行算法: %1").arg(getCurrentAlgorithmName()));
 }
@@ -258,6 +248,12 @@ void GraphAlgorithmController::resetAlgorithm()//ok
 
 void GraphAlgorithmController::addVertex(const QString &label, const QPointF &position)//ok
 {
+    // 检查算法是否正在运行
+    if (m_isRunning) {
+        logMessage("错误：算法正在执行中，无法添加顶点。请先停止算法。");
+        return;
+    }
+    
     if (m_graphModel) {
         if (m_graphModel->addVertex(label, position)) {
             logMessage(QString("添加顶点: %1").arg(label));
@@ -269,6 +265,12 @@ void GraphAlgorithmController::addVertex(const QString &label, const QPointF &po
 
 void GraphAlgorithmController::removeVertex(const QString &label)//ok
 {
+    // 检查算法是否正在运行
+    if (m_isRunning) {
+        logMessage("错误：算法正在执行中，无法删除顶点。请先停止算法。");
+        return;
+    }
+    
     if (m_graphModel) {
         if (m_graphModel->removeVertex(label)) {
             logMessage(QString("删除顶点: %1").arg(label));
@@ -280,6 +282,12 @@ void GraphAlgorithmController::removeVertex(const QString &label)//ok
 
 void GraphAlgorithmController::addEdge(const QString &from, const QString &to, int weight)//ok
 {
+    // 检查算法是否正在运行
+    if (m_isRunning) {
+        logMessage("错误：算法正在执行中，无法添加边。请先停止算法。");
+        return;
+    }
+    
     if (m_graphModel) {
         if (m_graphModel->addEdge(from, to, weight)) {
             logMessage(QString("添加边: %1 -> %2 (权重: %3)").arg(from).arg(to).arg(weight));
@@ -291,6 +299,12 @@ void GraphAlgorithmController::addEdge(const QString &from, const QString &to, i
 
 void GraphAlgorithmController::removeEdge(const QString &from, const QString &to)//ok
 {
+    // 检查算法是否正在运行
+    if (m_isRunning) {
+        logMessage("错误：算法正在执行中，无法删除边。请先停止算法。");
+        return;
+    }
+    
     if (m_graphModel) {
         if (m_graphModel->removeEdge(from, to)) {
             logMessage(QString("删除边: %1 -> %2").arg(from).arg(to));
@@ -531,6 +545,9 @@ void GraphAlgorithmController::setupGraphOperationsPanel()//ok
     
     connect(m_showMatrixButton, &QPushButton::clicked, this, &GraphAlgorithmController::onShowMatrixButtonClicked);
     connect(m_showAdjacencyListButton, &QPushButton::clicked, this, &GraphAlgorithmController::onShowAdjacencyListButtonClicked);
+    
+    // 初始化图操作按钮状态
+    updateGraphOperationButtons();
 }
 
 void GraphAlgorithmController::setupLayoutPanel()//ok
@@ -573,6 +590,7 @@ void GraphAlgorithmController::onAlgorithmStarted()//ok
     m_isRunning = true;
     m_isPaused = false;
     updateButtonStates();
+    updateGraphOperationButtons();
     //Controller发出信号，传递给Viewer 
     //为了可读性emit开头 功能等同于调用槽函数(不写emit)
     emit algorithmStarted();
@@ -588,6 +606,7 @@ void GraphAlgorithmController::onAlgorithmCompleted()//ok
     m_isRunning = false;
     m_isPaused = false;
     updateButtonStates();
+    updateGraphOperationButtons();
     logMessage("算法执行完成");
     emit algorithmCompleted();
 }
@@ -613,7 +632,14 @@ void GraphAlgorithmController::onAlgorithmStopped()//ok
     m_isRunning = false;
     m_isPaused = false;
     updateButtonStates();
+    updateGraphOperationButtons();
     logMessage("算法已停止");
+    
+    // 注意：不在这里关闭Dijkstra表格对话框
+    // 因为算法停止时可能还有信号在队列中，关闭对话框可能导致崩溃
+    // 对话框会在切换算法或重新启动Dijkstra算法时自动关闭
+    // 用户也可以手动关闭对话框
+    
     emit algorithmStopped();
 }
 
@@ -647,6 +673,25 @@ void GraphAlgorithmController::onResetButtonClicked()//ok
     resetAlgorithm();
 }
 
+void GraphAlgorithmController::updateGraphOperationButtons()
+{
+    // 根据算法运行状态启用/禁用图操作按钮
+    bool enabled = !m_isRunning;
+    
+    if (m_addVertexButton) {
+        m_addVertexButton->setEnabled(enabled);
+    }
+    if (m_removeVertexButton) {
+        m_removeVertexButton->setEnabled(enabled);
+    }
+    if (m_addEdgeButton) {
+        m_addEdgeButton->setEnabled(enabled);
+    }
+    if (m_removeEdgeButton) {
+        m_removeEdgeButton->setEnabled(enabled);
+    }
+}
+
 void GraphAlgorithmController::onAlgorithmComboBoxChanged(int index)//ok
 {
     //消除警告用的，其实没用
@@ -668,10 +713,6 @@ void GraphAlgorithmController::onDirectedCheckBoxToggled(bool checked)//ok
     }
 }
 
-void GraphAlgorithmController::onSpeedSliderChanged(int value)//ok
-{
-    setAnimationSpeed(value);
-}
 
 void GraphAlgorithmController::onLayoutButtonClicked()
 {
@@ -701,6 +742,14 @@ void GraphAlgorithmController::onShowAdjacencyListButtonClicked()
     AdjacencyListRepresentationDialog *dialog = new AdjacencyListRepresentationDialog(m_graphModel, nullptr);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->show();
+}
+
+void GraphAlgorithmController::onDijkstraTableUpdate(const QString &vertex, int distance, const QString &predecessor, bool visited)
+{
+    // QPointer会自动检查对象是否已被删除，如果已删除则返回nullptr
+    if (m_dijkstraTableDialog) {
+        m_dijkstraTableDialog->updateVertex(vertex, distance, predecessor, visited);
+    }
 }
 
 // ==================== SortAlgorithmController 实现 ====================
@@ -744,6 +793,12 @@ void SortAlgorithmController::setSortModel(SortModel *model)
 void SortAlgorithmController::startAlgorithm()
 {
     if (!m_sortModel) return;
+    
+    // 检查数据是否为空
+    if (m_sortModel->getData().empty()) {
+        logMessage("错误：数据为空，无法执行算法。请先生成或输入数据。");
+        return;
+    }
     
     int algorithmIndex = m_algorithmComboBox->currentIndex();
     SortAlgorithm algorithm = static_cast<SortAlgorithm>(algorithmIndex);
@@ -790,18 +845,30 @@ void SortAlgorithmController::resetAlgorithm()
 
 void SortAlgorithmController::setRandomData(int size, int minValue, int maxValue)
 {
-    if (m_sortModel) {
-        m_sortModel->setRandomData(size, minValue, maxValue);
-        logMessage(QString("生成随机数据: %1 个元素，范围 [%2, %3]").arg(size).arg(minValue).arg(maxValue));
+    if (!m_sortModel) return;
+    
+    // 如果算法正在运行，先停止算法
+    if (m_isRunning) {
+        m_sortModel->stopAlgorithm();
+        logMessage("算法已停止，正在生成新数据");
     }
+    
+    m_sortModel->setRandomData(size, minValue, maxValue);
+    logMessage(QString("生成随机数据: %1 个元素，范围 [%2, %3]").arg(size).arg(minValue).arg(maxValue));
 }
 
 void SortAlgorithmController::setCustomData(const MyVectorInt &data)
 {
-    if (m_sortModel) {
-        m_sortModel->setData(data);
-        logMessage(QString("设置自定义数据: %1 个元素").arg(data.size()));
+    if (!m_sortModel) return;
+    
+    // 如果算法正在运行，先停止算法
+    if (m_isRunning) {
+        m_sortModel->stopAlgorithm();
+        logMessage("算法已停止，正在设置新数据");
     }
+    
+    m_sortModel->setData(data);
+    logMessage(QString("设置自定义数据: %1 个元素").arg(data.size()));
 }
 
 void SortAlgorithmController::clearData()
@@ -830,8 +897,6 @@ QString SortAlgorithmController::getCurrentAlgorithmName() const
         case 2: return "插入排序";
         case 3: return "快速排序";
         case 4: return "归并排序";
-        case 5: return "堆排序";
-        case 6: return "基数排序";
         default: return "未知算法";
     }
 }
@@ -866,9 +931,7 @@ void SortAlgorithmController::setupSortControlPanel()
         "选择排序",
         "插入排序",
         "快速排序",
-        "归并排序",
-        "堆排序",
-        "基数排序"
+        "归并排序"
     });
     
     algorithmLayout->addWidget(new QLabel("排序算法:"));
@@ -1033,10 +1096,12 @@ void SortAlgorithmController::onGenerateDataButtonClicked()
 
 void SortAlgorithmController::onClearDataButtonClicked()
 {
+    // 如果算法正在运行，先停止算法
+    if (m_isRunning && m_sortModel) {
+        m_sortModel->stopAlgorithm();
+        logMessage("算法已停止，正在清空数据");
+    }
+    
     clearData();
 }
 
-void SortAlgorithmController::onSpeedSliderChanged(int value)
-{
-    setAnimationSpeed(value);
-}

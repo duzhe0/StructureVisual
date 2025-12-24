@@ -11,13 +11,13 @@ CONFIG += c++17
 SOURCES += \
     main.cpp \
     mainwindow.cpp \
-    model.cpp \
     VisualItem.cpp \
     GraphModel.cpp \
     SortModel.cpp \
     AlgorithmController.cpp \
     MatrixRepresentationDialog.cpp \
     AdjacencyListRepresentationDialog.cpp \
+    DijkstraTableDialog.cpp \
     MyVectorQString.cpp \
     MyVectorInt.cpp \
     MyVectorVertexItemPtr.cpp \
@@ -47,6 +47,7 @@ HEADERS += \
     AlgorithmController.h \
     MatrixRepresentationDialog.h \
     AdjacencyListRepresentationDialog.h \
+    DijkstraTableDialog.h \
     MyVectorQString.h \
     MyVectorInt.h \
     MyVectorVertexItemPtr.h \

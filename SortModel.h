@@ -22,9 +22,7 @@ enum class SortAlgorithm {
     SelectionSort,  // 选择排序
     InsertionSort,  // 插入排序
     QuickSort,      // 快速排序
-    MergeSort,      // 归并排序
-    HeapSort,       // 堆排序
-    RadixSort       // 基数排序
+    MergeSort       // 归并排序
 };
 
 // 排序步骤结构
@@ -37,6 +35,8 @@ struct SortStep {
     bool isSwap;                           // 是否为交换操作
     MyVectorInt newPositions;               // 新位置（用于交换动画）
     int pivotIndex = -1;                   // 基准元素索引（用于快速排序等高亮）
+    int mergeLeft = -1;                     // 归并区域左边界（用于归并排序）
+    int mergeRight = -1;                    // 归并区域右边界（用于归并排序）
 };
 
 // 排序数据模型类
@@ -106,6 +106,7 @@ private:
     // 可视化项
     MyVectorBarItemPtr m_barItems;
     QGraphicsScene *m_scene;
+    class QGraphicsLineItem *m_mergeUnderline;  // 归并区域下划线
     
     // 布局参数
     qreal m_barSpacing;
@@ -129,8 +130,6 @@ private:
     void generateInsertionSortSteps();
     void generateQuickSortSteps(MyVectorInt& data, int low, int high);
     void generateMergeSortSteps(MyVectorInt& data, int left, int right);
-    void generateHeapSortSteps();
-    void generateRadixSortSteps();
     
     // 辅助方法
     void resetAlgorithmState();
@@ -141,19 +140,21 @@ private:
                          int delay = 1000,
                          bool isSwap = false,
                          const MyVectorInt &newPositions = MyVectorInt(),
-                         int pivotIndex = -1);
+                         int pivotIndex = -1,
+                         int mergeLeft = -1,
+                         int mergeRight = -1);
     
     // 算法辅助函数
     int partition(MyVectorInt& data, int low, int high);
     void merge(MyVectorInt& data, int left, int mid, int right);
-    void heapify(MyVectorInt& data, int n, int i);
-    void buildHeap(MyVectorInt& data);
     
     // 可视化辅助
     void updateBarItems();
     QPointF calculateBarPosition(int index) const;
     void animateSwap(int index1, int index2);
     void animateMove(int srcIndex, int destIndex, int value);
+    void updateMergeUnderline(int left, int right);
+    void hideMergeUnderline();
     
     // 随机数生成
     std::random_device m_rd;

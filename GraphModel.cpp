@@ -17,6 +17,7 @@
 #include <QTimer>
 #include <QDebug>
 #include <QtMath>
+#include <QSet>
 #include <random>
 #include <QFile>
 #include <QTextStream>
@@ -228,6 +229,12 @@ void GraphModel::executeAlgorithm(GraphAlgorithm algorithm, const QString &start
         stopAlgorithm();
     }
     
+    // 检查图是否为空
+    if (m_vertices.empty()) {
+        qDebug() << "图为空，无法执行算法";
+        return;
+    }
+    
     m_currentAlgorithm = algorithm;
     m_startVertex = startVertex;
     m_algorithmRunning = true;
@@ -277,7 +284,7 @@ void GraphModel::resumeAlgorithm()
 {
     if (m_algorithmRunning && m_algorithmPaused) {
         m_algorithmPaused = false;
-        m_algorithmTimer->start(500); // 500ms后继续
+        m_algorithmTimer->start(1000); // 1秒后开始第一步
         emit algorithmResumed();
     }
 }
@@ -336,6 +343,11 @@ void GraphModel::applyCircularLayout()
 
 void GraphModel::applyForceDirectedLayout()
 {
+    if (m_vertices.empty()) return;
+    
+    // 先重置到圆形布局作为初始状态，避免每次点击都基于上一次结果继续收缩
+    applyCircularLayout();
+    
     // 简化的力导向布局算法
     const int iterations = 100;
     
@@ -389,35 +401,81 @@ void GraphModel::resetVisualization()
 
 void GraphModel::clearGraph()
 {
-    stopAlgorithm();
+    // 保存算法运行状态，以便后续发送信号
+    bool wasRunning = m_algorithmRunning;
+    
+    // 停止算法并确保定时器停止
+    m_algorithmRunning = false;
+    m_algorithmPaused = false;
+    m_algorithmTimer->stop();
     
     // 清空算法步骤
     while (!m_algorithmSteps.empty()) {
         m_algorithmSteps.pop();
     }
     
-    // 删除所有边
+    // 重置算法状态（清空MST边集合等）
+    resetAlgorithmState();
+    
+    // 重置可视化状态（在删除顶点和边之前）
+    if (wasRunning) {
+        resetVisualization();
+    }
+    
+    // 收集所有唯一的边对象（无向图中同一条边可能存储两次，但共享同一个EdgeItem对象）
+    QSet<EdgeItem*> uniqueEdges;
     for (size_t i = 0; i < m_edges.size(); ++i) {
-        if (m_scene) {
-            m_scene->removeItem(m_edges.valueAt(i));
+        EdgeItem *edge = m_edges.valueAt(i);
+        if (edge) {
+            uniqueEdges.insert(edge);
         }
-        delete m_edges.valueAt(i);
+    }
+    
+    // 删除所有唯一的边对象
+    for (EdgeItem *edge : uniqueEdges) {
+        if (edge) {
+            // 先断开信号连接，避免访问已删除的顶点
+            if (m_scene) {
+                m_scene->removeItem(edge);
+            }
+            delete edge;
+        }
     }
     m_edges.clear();
     
     // 删除所有顶点
     for (size_t i = 0; i < m_vertices.size(); ++i) {
-        if (m_scene) {
-            m_scene->removeItem(m_vertices.valueAt(i));
+        VertexItem *vertex = m_vertices.valueAt(i);
+        if (vertex) {
+            if (m_scene) {
+                m_scene->removeItem(vertex);
+            }
+            delete vertex;
         }
-        delete m_vertices.valueAt(i);
     }
     m_vertices.clear();
     m_adjacencyList.clear();
+    
+    // 如果之前有算法在运行，发送停止信号以更新UI状态
+    if (wasRunning) {
+        emit algorithmStopped();
+    }
+    
+    // 重置当前算法为默认值
+    m_currentAlgorithm = GraphAlgorithm::DFS;
 }
 
 void GraphModel::processNextStep()
 {
+    // 安全检查：如果算法未运行或图已清空，直接返回
+    if (!m_algorithmRunning || m_vertices.empty()) {
+        if (m_algorithmRunning) {
+            m_algorithmRunning = false;
+            emit algorithmStopped();
+        }
+        return;
+    }
+    
     if (m_algorithmSteps.empty()) {
         m_algorithmRunning = false;
         emit algorithmCompleted(m_currentAlgorithm);
@@ -426,6 +484,44 @@ void GraphModel::processNextStep()
     
     AlgorithmStep step = m_algorithmSteps.front();
     m_algorithmSteps.pop();
+    
+    // 对于Prim算法，在应用新状态前，重置所有非MST边的状态
+    if (m_currentAlgorithm == GraphAlgorithm::Prim) {
+        // 重置所有边的状态为Normal，除了已加入MST的边
+        for (size_t i = 0; i < m_edges.size(); ++i) {
+            EdgeItem *edge = m_edges.valueAt(i);
+            if (edge) {
+                const MyPairQStringQString &edgePair = m_edges.keyAt(i);
+                // 如果这条边不在MST中，重置为Normal
+                if (!m_primMstEdges.find(edgePair)) {
+                    // 检查反向边（无向图）
+                    MyPairQStringQString reversePair(edgePair.second, edgePair.first);
+                    if (!m_primMstEdges.find(reversePair)) {
+                        edge->setVisualState(VisualState::Normal);
+                    }
+                }
+            }
+        }
+    }
+    
+    // 对于Kruskal算法，在应用新状态前，重置所有非MST边的状态
+    if (m_currentAlgorithm == GraphAlgorithm::Kruskal) {
+        // 重置所有边的状态为Normal，除了已加入MST的边
+        for (size_t i = 0; i < m_edges.size(); ++i) {
+            EdgeItem *edge = m_edges.valueAt(i);
+            if (edge) {
+                const MyPairQStringQString &edgePair = m_edges.keyAt(i);
+                // 如果这条边不在MST中，重置为Normal
+                if (!m_kruskalMstEdges.find(edgePair)) {
+                    // 检查反向边（无向图）
+                    MyPairQStringQString reversePair(edgePair.second, edgePair.first);
+                    if (!m_kruskalMstEdges.find(reversePair)) {
+                        edge->setVisualState(VisualState::Normal);
+                    }
+                }
+            }
+        }
+    }
     
     // 应用可视化状态
     for (size_t i = 0; i < step.vertices.size(); ++i) {
@@ -447,13 +543,38 @@ void GraphModel::processNextStep()
             if (step.state == VisualState::Current) {
                 edge->startTraverseAnimation();
             }
+            // 如果是Prim算法且边被标记为Selected，将其加入MST边集合
+            if (m_currentAlgorithm == GraphAlgorithm::Prim && step.state == VisualState::Selected) {
+                m_primMstEdges.insert(edgePair);
+                // 如果是无向图，也添加反向边
+                if (!m_isDirected) {
+                    m_primMstEdges.insert(MyPairQStringQString(edgePair.second, edgePair.first));
+                }
+            }
+            // 如果是Kruskal算法且边被标记为Selected，将其加入MST边集合
+            if (m_currentAlgorithm == GraphAlgorithm::Kruskal && step.state == VisualState::Selected) {
+                m_kruskalMstEdges.insert(edgePair);
+                // 如果是无向图，也添加反向边
+                if (!m_isDirected) {
+                    m_kruskalMstEdges.insert(MyPairQStringQString(edgePair.second, edgePair.first));
+                }
+            }
         }
+    }
+    
+    // 如果是Dijkstra算法且步骤中包含表格更新信息，发送表格更新信号
+    if (m_currentAlgorithm == GraphAlgorithm::Dijkstra && step.dijkstraTableUpdate.isValid) {
+        emit dijkstraTableUpdate(step.dijkstraTableUpdate.vertex,
+                                step.dijkstraTableUpdate.distance,
+                                step.dijkstraTableUpdate.predecessor,
+                                step.dijkstraTableUpdate.visited);
     }
     
     emit algorithmStepCompleted(step);
     
     // 继续下一步
     if (!m_algorithmSteps.empty() && m_algorithmRunning && !m_algorithmPaused) {
+        // 使用速度设置，而不是步骤中的固定延迟
         m_algorithmTimer->start(step.delay);
     }
 }
@@ -590,13 +711,24 @@ void GraphModel::generateDijkstraSteps(const QString &startVertex)
     MyMapQStringToQString predecessors;
     // 未访问顶点集合
     MySetQString unvisited;
+    // 已访问顶点集合（用于表格显示）
+    MySetQString visited;
     
     // 初始化：所有顶点距离为无穷大，起始顶点距离为0
+    // 创建初始化步骤，包含所有顶点的初始表格状态
+    MyVectorQString allVertices;
     for (size_t i = 0; i < m_vertices.size(); ++i) {
-        distances[m_vertices.keyAt(i)] = INT_MAX;
-        unvisited.insert(m_vertices.keyAt(i));
+        const QString &vertex = m_vertices.keyAt(i);
+        distances[vertex] = INT_MAX;
+        unvisited.insert(vertex);
+        allVertices.push_back(vertex);
     }
     distances[startVertex] = 0;
+    
+    // 添加初始化步骤，包含起始顶点的表格更新信息
+    addAlgorithmStep(QString("初始化：所有顶点距离为∞，起始顶点 %1 距离为0").arg(startVertex),
+                    allVertices, MyVectorPairQStringQString(), VisualState::Normal, 1000,
+                    DijkstraTableUpdateInfo(startVertex, 0, "", false));
     
     while (!unvisited.empty()) {
         // 找到未访问顶点中距离最小的
@@ -616,12 +748,22 @@ void GraphModel::generateDijkstraSteps(const QString &startVertex)
         }
         
         unvisited.erase(current);
+        visited.insert(current);
+        
+        // 获取前驱顶点
+        QString pred = "";
+        QString* predPtr = predecessors.find(current);
+        if (predPtr != nullptr) {
+            pred = *predPtr;
+        }
         
         if (current != startVertex) {
             MyVectorQString currentVec3;
             currentVec3.push_back(current);
+            // 添加步骤，包含表格更新信息：标记当前顶点为已访问
             addAlgorithmStep(QString("选择距离最小的未访问顶点 %1 (距离: %2)").arg(current).arg(minDist),
-                            currentVec3, MyVectorPairQStringQString(), VisualState::Visited);
+                            currentVec3, MyVectorPairQStringQString(), VisualState::Visited, 1000,
+                            DijkstraTableUpdateInfo(current, distances[current], pred, true));
         }
         
         // 更新邻居的距离
@@ -645,10 +787,13 @@ void GraphModel::generateDijkstraSteps(const QString &startVertex)
                 if (newDist < distances[neighbor]) {
                     QString prevPred = predecessors.find(neighbor) != nullptr ? *predecessors.find(neighbor) : "无";
                     predecessors[neighbor] = current;  // 更新前驱顶点
+                    distances[neighbor] = newDist;
+                    // 添加步骤，包含表格更新信息：更新邻居的距离和前驱
+                    bool isVisited = visited.find(neighbor);  // find返回bool值
                     addAlgorithmStep(QString("发现更短路径到 %1：%2 -> %3 (新距离: %4，前驱: %2)").arg(neighbor)
                                     .arg(current).arg(neighbor).arg(newDist),
-                                    MyVectorQString(), MyVectorPairQStringQString(), VisualState::Current);
-                    distances[neighbor] = newDist;
+                                    MyVectorQString(), MyVectorPairQStringQString(), VisualState::Current, 1000,
+                                    DijkstraTableUpdateInfo(neighbor, newDist, current, isVisited));
                 } else {
                     addAlgorithmStep(QString("检查到 %1 的路径：%2 -> %3 (距离: %4，不更新)").arg(neighbor)
                                     .arg(current).arg(neighbor).arg(distances[neighbor]),
@@ -887,10 +1032,17 @@ void GraphModel::generateKruskalSteps()
             mstEdges.insert(MyPairQStringQString(edgeInfo.from, edgeInfo.to));
             edgesAdded++;
             
+            // 添加边到MST的步骤（显示被选中的边，标记为Selected红色）
+            MyVectorQString edgeVertices;
+            edgeVertices.push_back(edgeInfo.from);
+            edgeVertices.push_back(edgeInfo.to);
+            MyVectorPairQStringQString edgePair;
+            edgePair.push_back(MyPairQStringQString(edgeInfo.from, edgeInfo.to));
             addAlgorithmStep(QString("选择边：%1 -> %2 (权重: %3)，加入最小生成树").arg(edgeInfo.from)
                             .arg(edgeInfo.to).arg(edgeInfo.weight),
-                            MyVectorQString(), MyVectorPairQStringQString(), VisualState::Selected);
+                            edgeVertices, edgePair, VisualState::Selected);
         }
+        // 如果边会形成环，不添加任何步骤，直接跳过（不显示动画）
         
         // 如果已经添加了n-1条边，MST完成
         if (edgesAdded >= static_cast<int>(m_vertices.size()) - 1) {
@@ -993,6 +1145,8 @@ void GraphModel::resetAlgorithmState()
 {
     m_visitedVertices.clear();
     m_visitedEdges.clear();
+    m_primMstEdges.clear();
+    m_kruskalMstEdges.clear();
     
     while (!m_bfsQueue.empty()) {
         m_bfsQueue.pop();
@@ -1008,7 +1162,8 @@ void GraphModel::addAlgorithmStep(const QString &description,
                                  const MyVectorQString &vertices,
                                  const MyVectorPairQStringQString &edges,
                                  VisualState state,
-                                 int delay)
+                                 int delay,
+                                 const DijkstraTableUpdateInfo &dijkstraTableUpdate)
 {
     AlgorithmStep step;
     step.description = description;
@@ -1016,6 +1171,7 @@ void GraphModel::addAlgorithmStep(const QString &description,
     step.edges = edges;
     step.state = state;
     step.delay = delay;
+    step.dijkstraTableUpdate = dijkstraTableUpdate;
     
     m_algorithmSteps.push(step);
 }
@@ -1030,8 +1186,22 @@ QPointF GraphModel::calculateCircularPosition(int index, int total, qreal radius
 
 void GraphModel::applyForceDirectedStep()
 {
-    // 简化的力导向布局实现
+    // 力导向布局实现（Fruchterman-Reingold算法变体）
     MyMapQStringToQPointF forces;
+    
+    // 理想距离：根据图的规模动态计算
+    qreal idealDistance = 150.0;
+    if (m_vertices.size() > 0) {
+        // 根据顶点数量调整理想距离
+        idealDistance = qMax(100.0, qMin(200.0, qSqrt(40000.0 / m_vertices.size())));
+    }
+    
+    // 排斥力系数和吸引力系数，确保在理想距离处平衡
+    // 平衡条件：k_rep / distance = k_att * distance
+    // => distance^2 = k_rep / k_att
+    // 如果理想距离是 idealDistance，则：k_rep = k_att * idealDistance^2
+    const qreal k_att = 1.0;  // 吸引力系数
+    const qreal k_rep = k_att * idealDistance * idealDistance;  // 排斥力系数
     
     // 初始化力
     for (size_t i = 0; i < m_vertices.size(); ++i) {
@@ -1046,12 +1216,16 @@ void GraphModel::applyForceDirectedStep()
             QPointF diff = pos1 - pos2;
             qreal distance = qSqrt(diff.x() * diff.x() + diff.y() * diff.y());
             
-            if (distance > 0) {
-                qreal force = 100.0 / (distance * distance);
-                QPointF forceVector = (diff / distance) * force;
-                forces[m_vertices.keyAt(i1)] += forceVector;
-                forces[m_vertices.keyAt(i2)] -= forceVector;
+            // 避免除零，设置最小距离
+            if (distance < 1.0) {
+                distance = 1.0;
             }
+            
+            // 排斥力：k_rep / distance（线性反比，更稳定）
+            qreal force = k_rep / distance;
+            QPointF forceVector = (diff / distance) * force;
+            forces[m_vertices.keyAt(i1)] += forceVector;
+            forces[m_vertices.keyAt(i2)] -= forceVector;
         }
     }
     
@@ -1065,19 +1239,32 @@ void GraphModel::applyForceDirectedStep()
         QPointF diff = pos2 - pos1;
         qreal distance = qSqrt(diff.x() * diff.x() + diff.y() * diff.y());
         
-        if (distance > 0) {
-            qreal force = distance / 50.0; // 理想距离
-            QPointF forceVector = (diff / distance) * force;
-            forces[from] += forceVector;
-            forces[to] -= forceVector;
+        if (distance < 1.0) {
+            distance = 1.0;
         }
+        
+        // 吸引力：k_att * distance（线性，在理想距离处与排斥力平衡）
+        // 平衡点：k_rep / distance = k_att * distance
+        // => distance^2 = k_rep / k_att = idealDistance^2
+        // => distance = idealDistance
+        qreal force = k_att * distance;
+        QPointF forceVector = (diff / distance) * force;
+        forces[from] += forceVector;
+        forces[to] -= forceVector;
     }
     
-    // 应用力
-    const qreal damping = 0.1;
+    // 应用力（使用温度/阻尼系数控制移动幅度）
+    const qreal temperature = 0.15;  // 温度系数，控制移动幅度
     for (size_t i = 0; i < m_vertices.size(); ++i) {
-        QPointF force = forces[m_vertices.keyAt(i)] * damping;
-        QPointF newPos = m_vertices.valueAt(i)->pos() + force;
+        QPointF force = forces[m_vertices.keyAt(i)];
+        qreal forceMagnitude = qSqrt(force.x() * force.x() + force.y() * force.y());
+        
+        // 限制最大移动距离，避免过度移动
+        if (forceMagnitude > idealDistance) {
+            force = (force / forceMagnitude) * idealDistance;
+        }
+        
+        QPointF newPos = m_vertices.valueAt(i)->pos() + force * temperature;
         m_vertices.valueAt(i)->setPosition(newPos);
     }
     
